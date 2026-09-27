@@ -3,6 +3,8 @@
 > **"Code. Ship. Repeat."**  
 > Building AI-powered tools people actually use — from native macOS apps to open source infrastructure.
 
+**Live Demo:** [https://vishnu-m-s.vercel.app](https://vishnu-m-s.vercel.app)
+
 A personal web portfolio recreating the macOS Tahoe Liquid Glass user experience in the browser. Featuring an interactive operating system with desktop apps, Launchpad, Finder, Terminal, Safari, Notes, App Store, and Siri assistant.
 
 Built with [React](https://reactjs.org/), [Zustand](https://zustand-demo.pmnd.rs/), [UnoCSS](https://uno.antfu.me/), [TypeScript](https://www.typescriptlang.org/), and [Vite](https://vitejs.dev/).

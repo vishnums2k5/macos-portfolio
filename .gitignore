@@ -5,3 +5,4 @@ node_modules/
 dist/
 .env
 public/wallpapers/Tahoe Day.mov
+.vercel
