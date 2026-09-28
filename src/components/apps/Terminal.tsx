@@ -1,389 +1,754 @@
-import React from "react";
-import terminal from "~/configs/terminal";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+} from "react";
+import terminalConfig from "~/configs/terminal";
 import type { TerminalData } from "~/types";
 
-const CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const EMOJIS = ["\\(o_o)/", "(˚Δ˚)b", "(^-^*)", "(‵′)", "\\(°ˊДˋ°)/", "(‵′)"];
-
-const getEmoji = () => {
-  return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-};
-
-interface TerminalState {
-  rmrf: boolean;
-  content: JSX.Element[];
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface OutputLine {
+  id: number;
+  type: "input" | "output" | "error" | "system";
+  content: React.ReactNode;
+  prompt?: string;
 }
 
-// rain animation is adopted from: https://codepen.io/P3R0/pen/MwgoKv
-const HowDare = ({ setRMRF }: { setRMRF: (value: boolean) => void }) => {
-  const FONT_SIZE = 12;
+interface FileSystem {
+  [key: string]: TerminalData[];
+}
 
-  const [emoji, setEmoji] = useState("");
-  const [drops, setDrops] = useState<number[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
+// ── Colors (macOS Terminal "Pro" profile) ─────────────────────────────────────
+const COLORS = {
+  bg: "#1a1a1a",
+  text: "#f2f2f2",
+  dimText: "#8e8e93",
+  prompt: {
+    user: "#32d74b",   // green — user@host
+    path: "#0a84ff",   // blue  — path
+    arrow: "#ff9f0a",  // orange — %
+  },
+  dir: "#0a84ff",
+  file: "#f2f2f2",
+  exe: "#32d74b",
+  error: "#ff453a",
+  yellow: "#ffd60a",
+  cyan: "#5ac8fa",
+  pink: "#ff375f",
+  purple: "#bf5af2",
+};
+
+// ── Traffic light colors ──────────────────────────────────────────────────────
+const TL = { red: "#ff5f57", yellow: "#febc2e", green: "#28c840" };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+let lineCounter = 0;
+const uid = () => lineCounter++;
+
+function formatDate() {
+  return new Date().toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+// ── Terminal Component ─────────────────────────────────────────────────────────
+export default function Terminal() {
+  const [lines, setLines] = useState<OutputLine[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
+  const [curDirPath, setCurDirPath] = useState<string[]>([]);
+  const [rmrfActive, setRmrfActive] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const linesRef = useRef<OutputLine[]>([]);
+  linesRef.current = lines;
+
+  const curDirPathRef = useRef<string[]>([]);
+  curDirPathRef.current = curDirPath;
+
+  // ── Filesystem helpers ──────────────────────────────────────────────────────
+  const getCurChildren = useCallback((dirPath: string[]): TerminalData[] => {
+    let children: TerminalData[] = terminalConfig as TerminalData[];
+    for (const name of dirPath) {
+      const folder = children.find(
+        (item) => item.title === name && item.type === "folder"
+      );
+      if (!folder || !folder.children) return [];
+      children = folder.children;
+    }
+    return children;
+  }, []);
+
+  const getCurDirName = (dirPath: string[]) =>
+    dirPath.length === 0 ? "~" : dirPath[dirPath.length - 1];
+
+  const getPrompt = (dirPath: string[]) => {
+    const dir = getCurDirName(dirPath);
+    return (
+      <span style={{ userSelect: "none" }}>
+        <span style={{ color: COLORS.prompt.user }}>vishnums@MacBook-Pro</span>
+        <span style={{ color: COLORS.dimText }}> </span>
+        <span style={{ color: COLORS.prompt.path }}>{dir}</span>
+        <span style={{ color: COLORS.prompt.arrow }}> % </span>
+      </span>
+    );
+  };
+
+  // ── Append lines ──────────────────────────────────────────────────────────────
+  const addLine = useCallback((content: React.ReactNode, type: OutputLine["type"] = "output") => {
+    const line: OutputLine = { id: uid(), type, content };
+    setLines((prev) => [...prev, line]);
+  }, []);
+
+  // ── Scroll to bottom on new lines ─────────────────────────────────────────
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines]);
+
+  // ── Boot message ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const bootLines: React.ReactNode[] = [
+      <span key="last-login" style={{ color: COLORS.dimText }}>
+        Last login: {formatDate()} on ttys001
+      </span>,
+      <span key="welcome" style={{ color: COLORS.cyan }}>
+        Welcome to Vishnu's macOS Portfolio Terminal
+      </span>,
+      <span key="tip" style={{ color: COLORS.dimText }}>
+        Type{" "}
+        <span style={{ color: COLORS.yellow }}>help</span>{" "}
+        to see available commands.
+      </span>,
+      <span key="blank"> </span>,
+    ];
+    bootLines.forEach((line) => addLine(line, "system"));
+
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
+  // ── Commands ─────────────────────────────────────────────────────────────────
+  const runCommand = useCallback(
+    (raw: string) => {
+      const trimmed = raw.trim();
+      const parts = trimmed.split(/\s+/);
+      const cmd = parts[0] ?? "";
+      const arg = parts.slice(1).join(" ");
+      const dirPath = curDirPathRef.current;
+      const children = getCurChildren(dirPath);
+
+      if (!cmd) return;
+
+      switch (cmd) {
+        case "help": {
+          const helpContent = (
+            <div style={{ color: COLORS.text, lineHeight: 1.7 }}>
+              <div style={{ color: COLORS.yellow, marginBottom: 4 }}>
+                Available commands:
+              </div>
+              {[
+                ["ls", "List files and directories"],
+                ["cd <dir>", "Change directory  (cd .. | cd ~ | cd <name>)"],
+                ["cat <file>", "Display file contents"],
+                ["pwd", "Print working directory"],
+                ["whoami", "Display current user"],
+                ["echo <text>", "Print text to the terminal"],
+                ["date", "Show current date and time"],
+                ["clear", "Clear the terminal screen"],
+                ["help", "Show this help message"],
+                ["rm -rf /", ":)"],
+              ].map(([name, desc]) => (
+                <div key={name} style={{ display: "flex", gap: 8 }}>
+                  <span style={{ color: COLORS.exe, minWidth: 140 }}>{name}</span>
+                  <span style={{ color: COLORS.dimText }}>{desc}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 8, color: COLORS.dimText }}>
+                <span style={{ color: COLORS.text }}>↑ / ↓</span> — history  &nbsp;
+                <span style={{ color: COLORS.text }}>Tab</span> — auto-complete
+              </div>
+            </div>
+          );
+          addLine(helpContent);
+          break;
+        }
+
+        case "ls": {
+          if (children.length === 0) {
+            addLine(<span style={{ color: COLORS.dimText }}>empty directory</span>);
+          } else {
+            const grid = (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                  gap: "2px 16px",
+                  paddingTop: 2,
+                }}
+              >
+                {children.map((item) => (
+                  <span
+                    key={item.id}
+                    style={{
+                      color: item.type === "folder" ? COLORS.dir : COLORS.file,
+                      fontWeight: item.type === "folder" ? 600 : 400,
+                    }}
+                  >
+                    {item.type === "folder" ? "📁 " : "📄 "}
+                    {item.title}
+                    {item.type === "folder" ? "/" : ""}
+                  </span>
+                ))}
+              </div>
+            );
+            addLine(grid);
+          }
+          break;
+        }
+
+        case "cd": {
+          if (!arg || arg === "~") {
+            setCurDirPath([]);
+          } else if (arg === ".") {
+            // stay
+          } else if (arg === "..") {
+            setCurDirPath((prev) => prev.slice(0, -1));
+          } else {
+            const target = children.find(
+              (item) => item.title === arg && item.type === "folder"
+            );
+            if (!target) {
+              addLine(
+                <span style={{ color: COLORS.error }}>
+                  cd: no such file or directory: {arg}
+                </span>,
+                "error"
+              );
+            } else {
+              setCurDirPath((prev) => [...prev, arg]);
+            }
+          }
+          break;
+        }
+
+        case "cat": {
+          if (!arg) {
+            addLine(
+              <span style={{ color: COLORS.error }}>
+                usage: cat &lt;filename&gt;
+              </span>,
+              "error"
+            );
+            break;
+          }
+          const file = children.find(
+            (item) => item.title === arg && item.type === "file"
+          );
+          if (!file) {
+            addLine(
+              <span style={{ color: COLORS.error }}>
+                cat: {arg}: No such file or directory
+              </span>,
+              "error"
+            );
+          } else {
+            addLine(
+              <div style={{ paddingTop: 2, paddingBottom: 2 }}>
+                {file.content}
+              </div>
+            );
+          }
+          break;
+        }
+
+        case "pwd": {
+          const path = "/" + ["Users", "vishnums", ...dirPath].join("/");
+          addLine(<span style={{ color: COLORS.text }}>{path}</span>);
+          break;
+        }
+
+        case "whoami": {
+          addLine(<span style={{ color: COLORS.text }}>vishnums</span>);
+          break;
+        }
+
+        case "echo": {
+          addLine(<span style={{ color: COLORS.text }}>{arg}</span>);
+          break;
+        }
+
+        case "date": {
+          addLine(<span style={{ color: COLORS.text }}>{formatDate()}</span>);
+          break;
+        }
+
+        case "clear": {
+          setLines([]);
+          return;
+        }
+
+        case "rm": {
+          if (arg === "-rf" || raw.includes("rm -rf")) {
+            setRmrfActive(true);
+            return;
+          }
+          addLine(
+            <span style={{ color: COLORS.error }}>
+              rm: permission denied — this is a portfolio, not a real system 😄
+            </span>,
+            "error"
+          );
+          break;
+        }
+
+        case "neofetch": {
+          addLine(renderNeofetch(dirPath));
+          break;
+        }
+
+        case "open": {
+          if (arg) {
+            addLine(
+              <span style={{ color: COLORS.dimText }}>
+                Opening {arg}... (simulated)
+              </span>
+            );
+          }
+          break;
+        }
+
+        default: {
+          addLine(
+            <span style={{ color: COLORS.error }}>
+              zsh: command not found: {cmd}
+            </span>,
+            "error"
+          );
+        }
+      }
+    },
+    [addLine, getCurChildren]
+  );
+
+  // ── neofetch easter egg ───────────────────────────────────────────────────────
+  const renderNeofetch = (dirPath: string[]) => (
+    <div style={{ display: "flex", gap: 24, paddingTop: 4, paddingBottom: 4 }}>
+      <pre style={{ color: COLORS.prompt.user, fontSize: 11, lineHeight: 1.3, flexShrink: 0 }}>
+{`   ████████   
+  ██████████  
+ ████████████ 
+ ████████████ 
+ ████████████ 
+  ██████████  
+   ████████   
+ ▀▀▀▀▀▀▀▀▀▀▀ `}
+      </pre>
+      <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+        <div><span style={{ color: COLORS.prompt.user }}>vishnums</span><span style={{ color: COLORS.dimText }}>@</span><span style={{ color: COLORS.prompt.user }}>MacBook-Pro</span></div>
+        <div style={{ color: COLORS.dimText }}>───────────────────────</div>
+        {[
+          ["OS", "macOS 15.4 Sequoia"],
+          ["Host", "MacBook Pro (M4 Pro)"],
+          ["Shell", "zsh 5.9"],
+          ["Terminal", "Vishnu Portfolio v1.0"],
+          ["CPU", "Apple M4 Pro"],
+          ["Memory", "24 GB"],
+          ["Node", "v20.11.0"],
+          ["pnpm", "11.0.0"],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <span style={{ color: COLORS.cyan }}>{k}: </span>
+            <span style={{ color: COLORS.text }}>{v}</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
+          {["#ff453a","#ff9f0a","#ffd60a","#32d74b","#0a84ff","#5ac8fa","#bf5af2","#f2f2f2"].map((c) => (
+            <span key={c} style={{ background: c, display: "inline-block", width: 16, height: 16, borderRadius: 3 }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Auto-complete ──────────────────────────────────────────────────────────────
+  const autoComplete = useCallback(
+    (text: string) => {
+      if (!text.trim()) return text;
+      const parts = text.split(/\s+/);
+      const cmd = parts[0];
+      const arg = parts[1] ?? "";
+
+      const CMDS = ["ls", "cd", "cat", "pwd", "whoami", "echo", "date", "clear", "help", "neofetch", "rm", "open"];
+
+      if (parts.length === 1) {
+        const match = CMDS.find((c) => c.startsWith(cmd) && c !== cmd);
+        return match ?? text;
+      }
+
+      if (cmd === "cd" || cmd === "cat" || cmd === "open") {
+        const children = getCurChildren(curDirPathRef.current);
+        const type = cmd === "cat" ? "file" : cmd === "cd" ? "folder" : undefined;
+        const match = children.find(
+          (item) =>
+            item.title.startsWith(arg) &&
+            (type === undefined || item.type === type)
+        );
+        if (match) return `${cmd} ${match.title}`;
+      }
+
+      return text;
+    },
+    [getCurChildren]
+  );
+
+  // ── Key handler ────────────────────────────────────────────────────────────────
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        const raw = inputValue;
+        const dirPath = curDirPathRef.current;
+
+        // Echo input line
+        addLine(
+          <div style={{ display: "flex", alignItems: "baseline", gap: 0, flexWrap: "nowrap" }}>
+            {getPrompt(dirPath)}
+            <span style={{ color: COLORS.text }}>{raw}</span>
+          </div>,
+          "input"
+        );
+
+        if (raw.trim()) {
+          setHistory((prev) => [...prev, raw.trim()]);
+        }
+        setHistoryIdx(-1);
+        setInputValue("");
+        runCommand(raw);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHistory((hist) => {
+          setHistoryIdx((idx) => {
+            const newIdx = idx < 0 ? hist.length - 1 : Math.max(0, idx - 1);
+            setInputValue(hist[newIdx] ?? "");
+            return newIdx;
+          });
+          return hist;
+        });
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHistory((hist) => {
+          setHistoryIdx((idx) => {
+            const newIdx = idx < 0 ? -1 : Math.min(hist.length, idx + 1);
+            setInputValue(newIdx >= hist.length ? "" : hist[newIdx] ?? "");
+            return newIdx;
+          });
+          return hist;
+        });
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        setInputValue((v) => autoComplete(v));
+      } else if (e.key === "l" && e.ctrlKey) {
+        e.preventDefault();
+        setLines([]);
+      } else if (e.key === "c" && e.ctrlKey) {
+        e.preventDefault();
+        const dirPath = curDirPathRef.current;
+        addLine(
+          <div style={{ display: "flex", alignItems: "baseline" }}>
+            {getPrompt(dirPath)}
+            <span style={{ color: COLORS.text }}>{inputValue}^C</span>
+          </div>,
+          "input"
+        );
+        setInputValue("");
+      }
+    },
+    [inputValue, addLine, runCommand, autoComplete]
+  );
+
+  // ── Matrix / rm -rf easter egg ────────────────────────────────────────────────
+  if (rmrfActive) {
+    return <MatrixScreen onExit={() => setRmrfActive(false)} />;
+  }
+
+  const dirPath = curDirPath;
+
+  // ── Render ─────────────────────────────────────────────────────────────────────
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100%",
+        background: COLORS.bg,
+        borderRadius: "inherit",
+        overflow: "hidden",
+        fontFamily: "'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+        fontSize: 13,
+        color: COLORS.text,
+      }}
+      onClick={() => inputRef.current?.focus()}
+    >
+      {/* ── Title Bar ── */}
+      <div
+        style={{
+          height: 36,
+          background: "linear-gradient(180deg, #3a3a3a 0%, #2d2d2d 100%)",
+          borderBottom: "1px solid #1a1a1a",
+          display: "flex",
+          alignItems: "center",
+          padding: "0 12px",
+          gap: 8,
+          flexShrink: 0,
+          userSelect: "none",
+        }}
+      >
+        {/* Traffic lights */}
+        {[TL.red, TL.yellow, TL.green].map((color, i) => (
+          <div
+            key={color}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: "50%",
+              background: color,
+              boxShadow: `0 0 0 0.5px rgba(0,0,0,0.4)`,
+              cursor: "default",
+            }}
+          />
+        ))}
+
+        {/* Title */}
+        <div
+          style={{
+            flex: 1,
+            textAlign: "center",
+            fontSize: 12,
+            color: "#b0b0b0",
+            fontWeight: 500,
+            letterSpacing: "0.01em",
+          }}
+        >
+          vishnums — zsh — {getCurDirName(dirPath)}
+        </div>
+
+        {/* Right space to balance traffic lights */}
+        <div style={{ width: 48 }} />
+      </div>
+
+      {/* ── Tab Bar ── */}
+      <div
+        style={{
+          height: 32,
+          background: "#252525",
+          borderBottom: "1px solid #1a1a1a",
+          display: "flex",
+          alignItems: "stretch",
+          flexShrink: 0,
+        }}
+      >
+        {/* Active tab */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "0 16px",
+            background: COLORS.bg,
+            borderRight: "1px solid #1a1a1a",
+            borderTop: "2px solid #32d74b",
+            fontSize: 12,
+            color: "#d0d0d0",
+            cursor: "default",
+          }}
+        >
+          <span style={{ fontSize: 10, opacity: 0.7 }}>●</span>
+          zsh
+        </div>
+        {/* New tab button */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "0 12px",
+            color: "#666",
+            cursor: "pointer",
+            fontSize: 18,
+            lineHeight: 1,
+          }}
+          title="New Tab"
+        >
+          +
+        </div>
+      </div>
+
+      {/* ── Terminal Output ── */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "10px 16px",
+          lineHeight: 1.65,
+        }}
+      >
+        {lines.map((line) => (
+          <div
+            key={line.id}
+            style={{
+              wordBreak: "break-word",
+              whiteSpace: "pre-wrap",
+              minHeight: "1.65em",
+            }}
+          >
+            {line.content}
+          </div>
+        ))}
+
+        {/* ── Current input row ── */}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
+          {getPrompt(dirPath)}
+          <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}>
+            <input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              style={{
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: COLORS.text,
+                fontFamily: "inherit",
+                fontSize: "inherit",
+                lineHeight: "inherit",
+                width: "100%",
+                caretColor: COLORS.prompt.green,
+                padding: 0,
+              }}
+            />
+          </div>
+        </div>
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ── Status bar ── */}
+      <div
+        style={{
+          height: 22,
+          background: "#252525",
+          borderTop: "1px solid #1a1a1a",
+          display: "flex",
+          alignItems: "center",
+          padding: "0 12px",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ color: "#555", fontSize: 11 }}>
+          {"/Users/vishnums" + (dirPath.length > 0 ? "/" + dirPath.join("/") : "")}
+        </span>
+        <span style={{ color: "#555", fontSize: 11 }}>zsh  ·  utf-8</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Matrix Easter Egg ──────────────────────────────────────────────────────────
+const MATRIX_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()アイウエオカキクケコ";
+const EMOJIS = ["\\(o_o)/", "(˚Δ˚)b", "(^-^*)", "(‵′)", "\\(°ˊДˋ°)/"];
+
+function MatrixScreen({ onExit }: { onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const dropsRef = useRef<number[]>([]);
+  const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  const FONT_SIZE = 13;
 
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-
     if (!container || !canvas) return;
 
-    canvas.height = container.offsetHeight;
     canvas.width = container.offsetWidth;
-
-    const columns = Math.floor(canvas.width / FONT_SIZE);
-    setDrops(Array(columns).fill(1));
-
-    setEmoji(getEmoji());
-  }, []);
-
-  const rain = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    canvas.height = container.offsetHeight;
+    const cols = Math.floor(canvas.width / FONT_SIZE);
+    dropsRef.current = Array(cols).fill(1);
 
     const ctx = canvas.getContext("2d")!;
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const draw = () => {
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#2e9244";
-    ctx.font = `${FONT_SIZE}px arial`;
+      ctx.fillStyle = "#32d74b";
+      ctx.font = `${FONT_SIZE}px "SF Mono", monospace`;
 
-    drops.forEach((y, x) => {
-      const text = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
-      ctx.fillText(text, x * FONT_SIZE, y * FONT_SIZE);
-    });
+      dropsRef.current.forEach((y, x) => {
+        const ch = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
+        ctx.fillText(ch, x * FONT_SIZE, y * FONT_SIZE);
+      });
 
-    setDrops(
-      drops.map((y) => {
-        // sends the drop back to the top randomly after it has crossed the screen
-        // adding randomness to the reset to make the drops scattered on the Y axis
-        if (y * FONT_SIZE > canvas.height && Math.random() > 0.975) return 1;
-        // increments Y coordinate
-        else return y + 1;
-      })
-    );
-  };
+      dropsRef.current = dropsRef.current.map((y) =>
+        y * FONT_SIZE > canvas.height && Math.random() > 0.975 ? 1 : y + 1
+      );
 
-  useInterval(rain, 33);
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
 
   return (
     <div
       ref={containerRef}
-      className="fixed size-full bg-black text-white"
-      onClick={() => setRMRF(false)}
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "#000",
+        cursor: "pointer",
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+      onClick={onExit}
     >
-      <canvas ref={canvasRef}></canvas>
-      <div className="font-avenir absolute h-28 text-center space-y-4 m-auto inset-0">
-        <div text-4xl>{emoji}</div>
-        <div text-3xl>HOW DARE YOU!</div>
-        <div>Click to go back</div>
+      <canvas
+        ref={canvasRef}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          textAlign: "center",
+          color: "#fff",
+          fontFamily: "'SF Mono', monospace",
+          textShadow: "0 0 12px #32d74b",
+        }}
+      >
+        <div style={{ fontSize: 48, marginBottom: 12 }}>{emoji}</div>
+        <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 3, color: "#32d74b" }}>
+          HOW DARE YOU!
+        </div>
+        <div style={{ fontSize: 14, marginTop: 12, color: "#aaa" }}>
+          Click anywhere to go back
+        </div>
       </div>
     </div>
   );
-};
-
-export default class Terminal extends React.Component<{}, TerminalState> {
-  private history = [] as string[];
-  private curHistory = 0;
-  private curInputTimes = 0;
-  private curDirPath = [] as any;
-  private curChildren = terminal as any;
-  private commands: {
-    [key: string]: { (): void } | { (arg?: string): void };
-  };
-
-  constructor(props: {}) {
-    super(props);
-    this.state = {
-      content: [],
-      rmrf: false
-    };
-    this.commands = {
-      cd: this.cd,
-      ls: this.ls,
-      cat: this.cat,
-      clear: this.clear,
-      help: this.help
-    };
-  }
-
-  componentDidMount() {
-    this.reset();
-    this.generateInputRow(this.curInputTimes);
-  }
-
-  reset = () => {
-    const terminal = document.querySelector("#terminal-content") as HTMLElement;
-    terminal.innerHTML = "";
-  };
-
-  addRow = (row: JSX.Element) => {
-    if (this.state.content.find((item) => item.key === row.key)) return;
-
-    const content = this.state.content;
-    content.push(row);
-    this.setState({ content });
-  };
-
-  getCurDirName = () => {
-    if (this.curDirPath.length === 0) return "~";
-    else return this.curDirPath[this.curDirPath.length - 1];
-  };
-
-  getCurChildren = () => {
-    let children = terminal as any;
-    for (const name of this.curDirPath) {
-      children = children.find((item: TerminalData) => {
-        return item.title === name && item.type === "folder";
-      }).children;
-    }
-    return children;
-  };
-
-  // move into a specified folder
-  cd = (args?: string) => {
-    if (args === undefined || args === "~") {
-      // move to root
-      this.curDirPath = [];
-      this.curChildren = terminal;
-    } else if (args === ".") {
-      // stay in the current folder
-      return;
-    } else if (args === "..") {
-      // move to parent folder
-      if (this.curDirPath.length === 0) return;
-      this.curDirPath.pop();
-      this.curChildren = this.getCurChildren();
-    } else {
-      // move to certain child folder
-      const target = this.curChildren.find((item: TerminalData) => {
-        return item.title === args && item.type === "folder";
-      });
-      if (target === undefined) {
-        this.generateResultRow(
-          this.curInputTimes,
-          <span>{`cd: no such file or directory: ${args}`}</span>
-        );
-      } else {
-        this.curChildren = target.children;
-        this.curDirPath.push(target.title);
-      }
-    }
-  };
-
-  // display content of a specified folder
-  ls = () => {
-    const result = [];
-    for (const item of this.curChildren) {
-      result.push(
-        <span
-          key={`terminal-result-ls-${this.curInputTimes}-${item.id}`}
-          className={`${item.type === "file" ? "text-white" : "text-purple-300"}`}
-        >
-          {item.title}
-        </span>
-      );
-    }
-    this.generateResultRow(
-      this.curInputTimes,
-      <div className="grid grid-cols-4 w-full">{result}</div>
-    );
-  };
-
-  // display content of a specified file
-  cat = (args?: string) => {
-    const file = this.curChildren.find((item: TerminalData) => {
-      return item.title === args && item.type === "file";
-    });
-
-    if (file === undefined) {
-      this.generateResultRow(
-        this.curInputTimes,
-        <span>{`cat: ${args}: No such file or directory`}</span>
-      );
-    } else {
-      this.generateResultRow(this.curInputTimes, <span>{file.content}</span>);
-    }
-  };
-
-  // clear terminal
-  clear = () => {
-    this.curInputTimes += 1;
-    this.reset();
-  };
-
-  help = () => {
-    const help = (
-      <ul className="list-disc ml-6 pb-1.5">
-        <li>
-          <span text-red-400>cat {"<file>"}</span> - See the content of {"<file>"}
-        </li>
-        <li>
-          <span text-red-400>cd {"<dir>"}</span> - Move into
-          {" <dir>"}, "cd .." to move to the parent directory, "cd" or "cd ~" to return to
-          root
-        </li>
-        <li>
-          <span text-red-400>ls</span> - See files and directories in the current
-          directory
-        </li>
-        <li>
-          <span text-red-400>clear</span> - Clear the screen
-        </li>
-        <li>
-          <span text-red-400>help</span> - Display this help menu
-        </li>
-        <li>
-          <span text-red-400>rm -rf /</span> - :)
-        </li>
-        <li>
-          press <span text-red-400>up arrow / down arrow</span> - Select history commands
-        </li>
-        <li>
-          press <span text-red-400>tab</span> - Auto complete
-        </li>
-      </ul>
-    );
-    this.generateResultRow(this.curInputTimes, help);
-  };
-
-  autoComplete = (text: string) => {
-    if (text === "") return text;
-
-    const input = text.split(" ");
-    const cmd = input[0];
-    const args = input[1];
-
-    let result = text;
-
-    if (args === undefined) {
-      const guess = Object.keys(this.commands).find((item) => {
-        return item.substring(0, cmd.length) === cmd;
-      });
-      if (guess !== undefined) result = guess;
-    } else if (cmd === "cd" || cmd === "cat") {
-      const type = cmd === "cd" ? "folder" : "file";
-      const guess = this.curChildren.find((item: TerminalData) => {
-        return item.type === type && item.title.substring(0, args.length) === args;
-      });
-      if (guess !== undefined) result = cmd + " " + guess.title;
-    }
-    return result;
-  };
-
-  keyPress = (e: React.KeyboardEvent) => {
-    const keyCode = e.key;
-    const inputElement = document.querySelector(
-      `#terminal-input-${this.curInputTimes}`
-    ) as HTMLInputElement;
-    const inputText = inputElement.value.trim();
-    const input = inputText.split(" ");
-
-    if (keyCode === "Enter") {
-      // ----------- run command -----------
-      this.history.push(inputText);
-
-      const cmd = input[0];
-      const args = input[1];
-
-      // we can't edit the past input
-      inputElement.setAttribute("readonly", "true");
-
-      if (inputText.substring(0, 6) === "rm -rf") this.setState({ rmrf: true });
-      else if (cmd && Object.keys(this.commands).includes(cmd)) {
-        this.commands[cmd](args);
-      } else {
-        this.generateResultRow(
-          this.curInputTimes,
-          <span>{`zsh: command not found: ${cmd}`}</span>
-        );
-      }
-
-      // point to the last history command
-      this.curHistory = this.history.length;
-
-      // generate new input row
-      this.curInputTimes += 1;
-      this.generateInputRow(this.curInputTimes);
-    } else if (keyCode === "ArrowUp") {
-      // ----------- previous history command -----------
-      if (this.history.length > 0) {
-        if (this.curHistory > 0) this.curHistory--;
-        const historyCommand = this.history[this.curHistory];
-        inputElement.value = historyCommand;
-      }
-    } else if (keyCode === "ArrowDown") {
-      // ----------- next history command -----------
-      if (this.history.length > 0) {
-        if (this.curHistory < this.history.length) this.curHistory++;
-        if (this.curHistory === this.history.length) inputElement.value = "";
-        else {
-          const historyCommand = this.history[this.curHistory];
-          inputElement.value = historyCommand;
-        }
-      }
-    } else if (keyCode === "Tab") {
-      // ----------- auto complete -----------
-      inputElement.value = this.autoComplete(inputText);
-      // prevent tab outside the terminal
-      e.preventDefault();
-    }
-  };
-
-  focusOnInput = (id: number) => {
-    const input = document.querySelector(`#terminal-input-${id}`) as HTMLInputElement;
-    input.focus();
-  };
-
-  generateInputRow = (id: number) => {
-    const newRow = (
-      <div key={`terminal-input-row-${id}`} flex>
-        <div className="w-max hstack space-x-1.5">
-          <span text-yellow-200>
-            @vishnu <span text-green-300>{this.getCurDirName()}</span>
-          </span>
-          <span text-red-400>{">"}</span>
-        </div>
-        <input
-          id={`terminal-input-${id}`}
-          className="flex-1 px-1 text-white outline-none bg-transparent"
-          onKeyDown={this.keyPress}
-          autoFocus={true}
-        />
-      </div>
-    );
-    this.addRow(newRow);
-  };
-
-  generateResultRow = (id: number, result: JSX.Element) => {
-    const newRow = (
-      <div key={`terminal-result-row-${id}`} break-all>
-        {result}
-      </div>
-    );
-    this.addRow(newRow);
-  };
-
-  render() {
-    return (
-      <div
-        className="terminal font-terminal font-normal relative h-full bg-gray-800/90 overflow-y-scroll"
-        text="white sm"
-        onClick={() => this.focusOnInput(this.curInputTimes)}
-      >
-        {this.state.rmrf && (
-          <HowDare setRMRF={(value: boolean) => this.setState({ rmrf: value })} />
-        )}
-        <div p="y-2 x-1.5">
-          <span className="text-green-300">help</span>: Hey, you found the terminal!
-          Type `help` to get started.
-        </div>
-        <div id="terminal-content" p="x-1.5 b-2">
-          {this.state.content}
-        </div>
-      </div>
-    );
-  }
 }
