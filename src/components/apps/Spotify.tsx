@@ -5,7 +5,7 @@ const DEFAULT_API =
   import.meta.env.VITE_SPOTIFY_API_URL ||
   (typeof window !== "undefined" && window.location.hostname === "localhost"
     ? "http://localhost:3001/api"
-    : "http://localhost:3001/api");
+    : "https://spotify-backend-vvyn.onrender.com/api");
 
 function getStoredApi(): string {
   if (typeof window !== "undefined") {

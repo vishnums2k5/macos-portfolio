@@ -7,7 +7,7 @@ const https = require("https");
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
 // Auto-detect yt-dlp binary path
 const YTDLP_BIN =
@@ -100,6 +100,6 @@ function formatDuration(s) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 }
 
-app.listen(PORT, () => {
-  console.log(`\n🎵 Spotify backend → http://localhost:${PORT}\n`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\n🎵 Spotify backend → http://0.0.0.0:${PORT}\n`);
 });

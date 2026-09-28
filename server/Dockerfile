@@ -15,7 +15,7 @@ RUN npm install --production
 
 COPY . .
 
-ENV PORT=3001
-EXPOSE 3001
+ENV PORT=10000
+EXPOSE 10000
 
 CMD ["node", "server.cjs"]
