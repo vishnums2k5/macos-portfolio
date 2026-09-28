@@ -48,6 +48,25 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
+// ── Stream URL ────────────────────────────────────────────────────────────────
+app.get("/api/stream", async (req, res) => {
+  const id = String(req.query.id || "").trim();
+  if (!id || !/^[a-zA-Z0-9_-]{11}$/.test(id)) {
+    return res.status(400).json({ error: "invalid video id" });
+  }
+
+  try {
+    const cmd = `${YTDLP_BIN} -g -f "140/ba/b" "https://youtube.com/watch?v=${id}" 2>/dev/null`;
+    const { stdout } = await execAsync(cmd, { timeout: 20000 });
+    const streamUrl = stdout.trim().split("\n")[0];
+    if (!streamUrl) return res.status(404).json({ error: "Stream URL not found" });
+    res.json({ url: streamUrl });
+  } catch (err) {
+    console.error("[stream]", err.message);
+    res.status(500).json({ error: "Failed to extract stream" });
+  }
+});
+
 // ── Proxy stream ──────────────────────────────────────────────────────────────
 app.get("/api/proxy", async (req, res) => {
   const id = String(req.query.id || "").trim();
@@ -56,7 +75,7 @@ app.get("/api/proxy", async (req, res) => {
   }
 
   try {
-    const cmd = `${YTDLP_BIN} -g -f "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio" "https://youtube.com/watch?v=${id}" 2>/dev/null`;
+    const cmd = `${YTDLP_BIN} -g -f "140/ba/b" "https://youtube.com/watch?v=${id}" 2>/dev/null`;
     const { stdout } = await execAsync(cmd, { timeout: 20000 });
     const streamUrl = stdout.trim().split("\n")[0];
 

@@ -5,7 +5,7 @@ const DEFAULT_API =
   import.meta.env.VITE_SPOTIFY_API_URL ||
   (typeof window !== "undefined" && window.location.hostname === "localhost"
     ? "http://localhost:3001/api"
-    : "https://spotify-backend-vvyn.onrender.com/api");
+    : "https://spotify-backend-vvyq.onrender.com/api");
 
 function getStoredApi(): string {
   if (typeof window !== "undefined") {
@@ -133,18 +133,31 @@ export default function Spotify() {
     setPlayer((p) => ({ ...p, track, playing: false, loading: true, error: null, progress: 0, elapsed: 0 }));
 
     try {
-      // Use proxy endpoint from configured backend
       const baseApi = getStoredApi();
       audio.src = `${baseApi}/proxy?id=${track.id}`;
       audio.volume = player.volume;
       await audio.play();
       setPlayer((p) => ({ ...p, playing: true, loading: false }));
-    } catch (err: any) {
-      setPlayer((p) => ({
-        ...p,
-        loading: false,
-        error: `Playback error: backend unreachable. Ensure your Render backend or local server is running.`,
-      }));
+    } catch {
+      try {
+        const baseApi = getStoredApi();
+        const res = await fetch(`${baseApi}/stream?id=${track.id}`);
+        const data = await res.json();
+        if (data.url) {
+          audio.src = data.url;
+          audio.volume = player.volume;
+          await audio.play();
+          setPlayer((p) => ({ ...p, playing: true, loading: false }));
+          return;
+        }
+        throw new Error("No stream URL");
+      } catch (err: any) {
+        setPlayer((p) => ({
+          ...p,
+          loading: false,
+          error: "Playback error: could not stream track.",
+        }));
+      }
     }
   }, [player.volume]);
 
