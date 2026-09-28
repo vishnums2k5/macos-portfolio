@@ -13,19 +13,18 @@ const terminal: TerminalData[] = [
         content: (
           <div className="py-1">
             <div>
-              Hi, I'm Vishnu M S. Code. Ship. Repeat.
+              I'm <span className="text-yellow-300 font-semibold">Vishnu M S</span>, a second-year B.Tech CSE (AI & ML) student at Polaris School of Technology.
             </div>
-            <div className="mt-1 text-gray-300">
-              Building AI-powered tools people actually use — from native macOS apps to open source infrastructure.
+            <div className="mt-2 text-gray-300">
+              I build AI-integrated apps in Swift, TypeScript, and Python. My work includes{" "}
+              <a className="text-blue-300 underline" href="https://www.type-shit.app/" target="_blank" rel="noreferrer">TypeFlux</a> (native macOS AI copilot),{" "}
+              <a className="text-blue-300 underline" href="https://chesswise-web.vercel.app/" target="_blank" rel="noreferrer">ChessWise</a> (chess coach pairing Stockfish with Gemini), and two Chrome extensions, LLM Council and Universal Chat Cleaner, used by 150+ people.
+            </div>
+            <div className="mt-2 text-gray-400">
+              📍 Bengaluru, Karnataka, India
             </div>
           </div>
         )
-      },
-      {
-        id: "about-interests",
-        title: "interests.txt",
-        type: "file",
-        content: "AI/LLM Applications / Chrome Extensions / Native macOS / Full-Stack & Systems Engineering"
       },
       {
         id: "about-skills",
@@ -34,9 +33,10 @@ const terminal: TerminalData[] = [
         content: (
           <div className="py-1 space-y-1">
             <div><span className="text-yellow-300">Languages:</span> Python, JavaScript, TypeScript, Swift, Go</div>
-            <div><span className="text-blue-300">AI / LLM:</span> OpenAI, Anthropic, Gemini, RAG pipelines, pgvector, prompt engineering</div>
+            <div><span className="text-blue-300">AI & LLM:</span> OpenAI, Anthropic, and Gemini APIs, RAG pipelines, pgvector, Zod</div>
             <div><span className="text-green-300">Frameworks:</span> React, Next.js, Node.js, SwiftUI, AppKit, Tailwind CSS, Prisma</div>
-            <div><span className="text-purple-300">Infra & DB:</span> PostgreSQL, MongoDB, Redis, BullMQ, AWS S3, Docker, Turborepo</div>
+            <div><span className="text-purple-300">Data & Infra:</span> PostgreSQL, MongoDB, Redis, BullMQ, AWS S3, Docker, Turborepo</div>
+            <div><span className="text-cyan-300">Tools:</span> Git, GitHub, Postman, Chrome Extensions API</div>
           </div>
         )
       },
@@ -45,11 +45,11 @@ const terminal: TerminalData[] = [
         title: "contact.txt",
         type: "file",
         content: (
-          <ul className="list-disc ml-6">
+          <ul className="list-disc ml-6 space-y-0.5">
             <li>
               Email:{" "}
               <a
-                className="text-blue-300"
+                className="text-blue-300 underline"
                 href="mailto:vishnusajeev2005@gmail.com"
                 target="_blank"
                 rel="noreferrer"
@@ -60,7 +60,7 @@ const terminal: TerminalData[] = [
             <li>
               GitHub:{" "}
               <a
-                className="text-blue-300"
+                className="text-blue-300 underline"
                 href="https://github.com/vishnums2k5"
                 target="_blank"
                 rel="noreferrer"
@@ -71,7 +71,7 @@ const terminal: TerminalData[] = [
             <li>
               LinkedIn:{" "}
               <a
-                className="text-blue-300"
+                className="text-blue-300 underline"
                 href="https://www.linkedin.com/in/vishnu-m-s-0358802a1/"
                 target="_blank"
                 rel="noreferrer"
@@ -82,7 +82,7 @@ const terminal: TerminalData[] = [
             <li>
               X:{" "}
               <a
-                className="text-blue-300"
+                className="text-blue-300 underline"
                 href="https://x.com/vishnums2k5"
                 target="_blank"
                 rel="noreferrer"
@@ -93,7 +93,7 @@ const terminal: TerminalData[] = [
             <li>
               LeetCode:{" "}
               <a
-                className="text-blue-300"
+                className="text-blue-300 underline"
                 href="https://leetcode.com/u/vishnu2ko5/"
                 target="_blank"
                 rel="noreferrer"
@@ -102,6 +102,24 @@ const terminal: TerminalData[] = [
               </a>
             </li>
           </ul>
+        )
+      },
+      {
+        id: "about-resume",
+        title: "resume.txt",
+        type: "file",
+        content: (
+          <div className="py-1">
+            <span>Download resume (PDF): </span>
+            <a
+              className="text-blue-300 underline"
+              href="/Vishnu_Resume.pdf"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Vishnu_Resume.pdf
+            </a>
+          </div>
         )
       }
     ]

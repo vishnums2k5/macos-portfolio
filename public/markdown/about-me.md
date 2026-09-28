@@ -2,36 +2,38 @@
 
 ## Introduction
 
-Hey there! 👋 I'm **Vishnu M S**.
+I'm **Vishnu M S**, a second-year B.Tech CSE (AI & ML) student at Polaris School of Technology.
 
-> **"Code. Ship. Repeat."**
+I build AI-integrated apps in Swift, TypeScript, and Python. My work includes
+[TypeFlux](https://www.type-shit.app/), a native macOS AI copilot;
+[ChessWise](https://chesswise-web.vercel.app/), a chess coach that pairs Stockfish
+evaluations with Gemini; and two Chrome extensions, LLM Council and Universal Chat
+Cleaner, used by 150+ people.
 
-I specialize in building AI-powered tools people actually use — from native macOS apps to high-performance open-source infrastructure. I love building intuitive software that solves real pain points, experimenting with cutting-edge LLMs, and shipping fast.
-
-📍 Based in **Bengaluru, Karnataka, India**.
+📍 Bengaluru, Karnataka, India
 
 ---
 
 ## 🛠️ Technical Skills
 
-* **Languages:** Python, JavaScript, TypeScript, Swift, Go
-* **AI & LLM:** OpenAI & Anthropic APIs, Google Gemini, RAG pipelines, pgvector embeddings, prompt engineering, Zod schema validation
-* **Frameworks & Platforms:** React, Next.js, Node.js, SwiftUI, AppKit, Tailwind CSS, Prisma ORM
-* **Data & Infra:** PostgreSQL, MongoDB, Redis, BullMQ, AWS S3, Docker, Turborepo
-* **Tools & Ecosystem:** Git, GitHub, Postman, Chrome Extensions API, CI/CD
+- **Languages:** Python, JavaScript, TypeScript, Swift, Go
+- **AI & LLM:** OpenAI, Anthropic, and Gemini APIs, RAG pipelines, pgvector, Zod
+- **Frameworks:** React, Next.js, Node.js, SwiftUI, AppKit, Tailwind CSS, Prisma
+- **Data & Infra:** PostgreSQL, MongoDB, Redis, BullMQ, AWS S3, Docker, Turborepo
+- **Tools:** Git, GitHub, Postman, Chrome Extensions API
 
 ---
 
-## 📬 Contact & Profiles
+## 📬 Contact
 
-* **Email:** [vishnusajeev2005@gmail.com](mailto:vishnusajeev2005@gmail.com)
-* **GitHub:** [@vishnums2k5](https://github.com/vishnums2k5)
-* **LinkedIn:** [Vishnu M S](https://www.linkedin.com/in/vishnu-m-s-0358802a1/)
-* **X (Twitter):** [@vishnums2k5](https://x.com/vishnums2k5)
-* **LeetCode:** [vishnu2ko5](https://leetcode.com/u/vishnu2ko5/)
+- **Email:** [vishnusajeev2005@gmail.com](mailto:vishnusajeev2005@gmail.com)
+- **GitHub:** [@vishnums2k5](https://github.com/vishnums2k5)
+- **LinkedIn:** [Vishnu M S](https://www.linkedin.com/in/vishnu-m-s-0358802a1/)
+- **X:** [@vishnums2k5](https://x.com/vishnums2k5)
+- **LeetCode:** [vishnu2ko5](https://leetcode.com/u/vishnu2ko5/)
 
 ---
 
 ## 📄 Resume
 
-Download my resume: [Vishnu_Resume.pdf](/resume.pdf)
+[Download resume (PDF)](/Vishnu_Resume.pdf)

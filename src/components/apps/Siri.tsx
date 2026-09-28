@@ -7,21 +7,17 @@ import type { ChatMessage } from "~/utils/groq";
 type SiriPhase = "idle" | "recording" | "processing" | "speaking" | "error";
 
 //  Vishnu resume context for conversational answers 
-const VISHNU_INFO = `Vishnu M S is a developer building AI-powered tools people actually use — from native macOS apps to open source infrastructure.
-His motto is "Code. Ship. Repeat."
+const VISHNU_INFO = `Vishnu M S is a second-year B.Tech CSE (AI & ML) student at Polaris School of Technology.
+He builds AI-integrated apps in Swift, TypeScript, and Python. His work includes TypeFlux (native macOS AI copilot), ChessWise (chess coach that pairs Stockfish evaluations with Gemini), and two Chrome extensions, LLM Council and Universal Chat Cleaner, used by 150+ people.
 Based in Bengaluru, Karnataka, India.
-Key Skills: Python, JavaScript, TypeScript, Swift, Go, React, Next.js, Node.js, SwiftUI, AppKit, Tailwind CSS, Prisma ORM, PostgreSQL, MongoDB, Redis, BullMQ, Docker, Chrome Extensions API, OpenAI & Claude APIs, Google Gemini, RAG pipelines, pgvector embeddings.
-Featured Projects:
-- LLM Council - Compare AI Responses (Chrome extension to broadcast prompts across open AI chats with an automated AI Judge)
-- Universal Chat Cleaner: Bulk Delete AI Chats (Bulk-select, archive, and delete AI chats across 14+ platforms)
-- Udemy+ (Chrome extension with video controls, OCR code extraction, spaced repetition, and study analytics)
-- TypeFlux (Native macOS AI utility running invisibly to rewrite text system-wide via Accessibility API)
-- ChessWise (Personalized AI chess coach with Stockfish 18, Gemini, and RAG blunder drills)
-- Repeat (Full-stack DSA spaced-repetition platform syncing LeetCode submissions)
-- AudioFlow (Modern Android music streaming app built with Jetpack Compose & Media3 ExoPlayer)
-- Habit Tracker (Clean productivity web app to track daily progress and maintain streaks)
-Contact: Email vishnusajeev2005@gmail.com | GitHub @vishnums2k5 | LinkedIn: vishnu-m-s-0358802a1 | X: @vishnums2k5 | LeetCode: vishnu2ko5
-His resume is available for download.`;
+Technical Skills:
+- Languages: Python, JavaScript, TypeScript, Swift, Go
+- AI & LLM: OpenAI, Anthropic, and Gemini APIs, RAG pipelines, pgvector, Zod
+- Frameworks: React, Next.js, Node.js, SwiftUI, AppKit, Tailwind CSS, Prisma
+- Data & Infra: PostgreSQL, MongoDB, Redis, BullMQ, AWS S3, Docker, Turborepo
+- Tools: Git, GitHub, Postman, Chrome Extensions API
+Contact: Email vishnusajeev2005@gmail.com | GitHub @vishnums2k5 | LinkedIn: Vishnu M S | X: @vishnums2k5 | LeetCode: vishnu2ko5
+Resume: Vishnu_Resume.pdf is available for download.`;
 
 const SIRI_FALLBACK = "Hey, I appreciate the curiosity! But I can only perform actions that Vishnu has set up for me. He built me to help navigate his portfolio — try asking me to open an app, play music, toggle dark mode, or check the time!";
 
