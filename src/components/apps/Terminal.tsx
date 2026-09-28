@@ -489,7 +489,6 @@ export default function Terminal() {
         width: "100%",
         height: "100%",
         background: COLORS.bg,
-        borderRadius: "inherit",
         overflow: "hidden",
         fontFamily: "'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
         fontSize: 13,
@@ -497,99 +496,6 @@ export default function Terminal() {
       }}
       onClick={() => inputRef.current?.focus()}
     >
-      {/* ── Title Bar ── */}
-      <div
-        style={{
-          height: 36,
-          background: "linear-gradient(180deg, #3a3a3a 0%, #2d2d2d 100%)",
-          borderBottom: "1px solid #1a1a1a",
-          display: "flex",
-          alignItems: "center",
-          padding: "0 12px",
-          gap: 8,
-          flexShrink: 0,
-          userSelect: "none",
-        }}
-      >
-        {/* Traffic lights */}
-        {[TL.red, TL.yellow, TL.green].map((color, i) => (
-          <div
-            key={color}
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: color,
-              boxShadow: `0 0 0 0.5px rgba(0,0,0,0.4)`,
-              cursor: "default",
-            }}
-          />
-        ))}
-
-        {/* Title */}
-        <div
-          style={{
-            flex: 1,
-            textAlign: "center",
-            fontSize: 12,
-            color: "#b0b0b0",
-            fontWeight: 500,
-            letterSpacing: "0.01em",
-          }}
-        >
-          vishnums — zsh — {getCurDirName(dirPath)}
-        </div>
-
-        {/* Right space to balance traffic lights */}
-        <div style={{ width: 48 }} />
-      </div>
-
-      {/* ── Tab Bar ── */}
-      <div
-        style={{
-          height: 32,
-          background: "#252525",
-          borderBottom: "1px solid #1a1a1a",
-          display: "flex",
-          alignItems: "stretch",
-          flexShrink: 0,
-        }}
-      >
-        {/* Active tab */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 16px",
-            background: COLORS.bg,
-            borderRight: "1px solid #1a1a1a",
-            borderTop: "2px solid #32d74b",
-            fontSize: 12,
-            color: "#d0d0d0",
-            cursor: "default",
-          }}
-        >
-          <span style={{ fontSize: 10, opacity: 0.7 }}>●</span>
-          zsh
-        </div>
-        {/* New tab button */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "0 12px",
-            color: "#666",
-            cursor: "pointer",
-            fontSize: 18,
-            lineHeight: 1,
-          }}
-          title="New Tab"
-        >
-          +
-        </div>
-      </div>
-
       {/* ── Terminal Output ── */}
       <div
         style={{

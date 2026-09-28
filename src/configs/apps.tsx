@@ -85,8 +85,15 @@ const apps: AppsData[] = [
     desktop: true,
     hideOnMobile: true,
     img: "img/icons/terminal.png",
+    width: 720,
+    height: 480,
+    minWidth: 420,
+    minHeight: 280,
+    x: -20,
+    y: -20,
     content: <Terminal />,
   },
+
   {
     id: "github",
     title: "Github",
