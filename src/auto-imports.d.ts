@@ -76,6 +76,7 @@ declare global {
   const useContext: typeof import('react')['useContext']
   const useDebugValue: typeof import('react')['useDebugValue']
   const useDeferredValue: typeof import('react')['useDeferredValue']
+  const useDeviceMode: typeof import('./hooks/useDeviceMode')['useDeviceMode']
   const useEffect: typeof import('react')['useEffect']
   const useId: typeof import('react')['useId']
   const useImperativeHandle: typeof import('react')['useImperativeHandle']

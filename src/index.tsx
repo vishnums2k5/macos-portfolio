@@ -29,7 +29,7 @@ const loginExitVariants = {
 };
 
 import Mobile from "~/pages/Mobile";
-import { useWindowSize } from "~/hooks/useWindowSize";
+import { useDeviceMode } from "~/hooks";
 
 const desktopEnterVariants = {
   initial: { opacity: 0, scale: 0.97, filter: "brightness(2)" },
@@ -56,13 +56,41 @@ const bootVariants = {
 };
 
 export default function App() {
-  const [login, setLogin] = useState<boolean>(false);
+  const deviceMode = useDeviceMode();
+  const isMobile = deviceMode === "mobile";
+
+  const [login, setLogin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    // On mobile: land on home if already unlocked in this session
+    if (window.innerWidth <= 768) {
+      try {
+        return sessionStorage.getItem("portfolio_unlocked") === "true";
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
   const [booting, setBooting] = useState<boolean>(false);
   const [restart, setRestart] = useState<boolean>(false);
   const [sleep, setSleep] = useState<boolean>(false);
 
-  const { winWidth } = useWindowSize();
-  const isMobile = winWidth < 768;
+  const handleSetLogin = (value: boolean | ((prevVar: boolean) => boolean)) => {
+    setLogin((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      if (isMobile) {
+        try {
+          if (next) {
+            sessionStorage.setItem("portfolio_unlocked", "true");
+          } else {
+            sessionStorage.removeItem("portfolio_unlocked");
+          }
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   const { dark, getWallpaper, iconStyle, tintWindows } = useStore((s) => ({
     dark: s.dark,
@@ -90,6 +118,9 @@ export default function App() {
 
   const shutMac = (e: React.MouseEvent): void => {
     e.stopPropagation();
+    try {
+      sessionStorage.removeItem("portfolio_unlocked");
+    } catch {}
     setRestart(false);
     setSleep(false);
     setLogin(false);
@@ -98,6 +129,9 @@ export default function App() {
 
   const restartMac = (e: React.MouseEvent): void => {
     e.stopPropagation();
+    try {
+      sessionStorage.removeItem("portfolio_unlocked");
+    } catch {}
     setRestart(true);
     setSleep(false);
     setLogin(false);
@@ -106,6 +140,9 @@ export default function App() {
 
   const sleepMac = (e: React.MouseEvent): void => {
     e.stopPropagation();
+    try {
+      sessionStorage.removeItem("portfolio_unlocked");
+    } catch {}
     setRestart(false);
     setSleep(true);
     setLogin(false);
@@ -121,7 +158,7 @@ export default function App() {
   const page = getPage();
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", background: "transparent" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: "100dvh", background: "transparent" }}>
       {/* Persistent wallpaper — always visible, never absent during transitions */}
       <div
         style={{
@@ -160,14 +197,14 @@ export default function App() {
           >
             {isMobile ? (
               <Mobile
-                setLogin={setLogin}
+                setLogin={handleSetLogin}
                 shutMac={shutMac}
                 sleepMac={sleepMac}
                 restartMac={restartMac}
               />
             ) : (
               <Desktop
-                setLogin={setLogin}
+                setLogin={handleSetLogin}
                 shutMac={shutMac}
                 sleepMac={sleepMac}
                 restartMac={restartMac}
@@ -186,7 +223,7 @@ export default function App() {
             style={{ position: "absolute", inset: 0, zIndex: 1 }}
           >
             <Login
-              setLogin={setLogin}
+              setLogin={handleSetLogin}
               shutMac={shutMac}
               sleepMac={sleepMac}
               restartMac={restartMac}
@@ -195,9 +232,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* White bloom flash — gentler fade-out on login→desktop */}
+      {/* White bloom flash — desktop only */}
       <AnimatePresence>
-        {login && (
+        {login && !isMobile && (
           <motion.div
             key="flash"
             style={{

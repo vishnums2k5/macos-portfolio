@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { user } from "~/configs";
 import type { MacActions } from "~/types";
 import moment from "moment";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDeviceMode } from "~/hooks";
+import { useStore } from "~/stores";
 
 export default function Login(props: MacActions) {
   const [password, setPassword] = useState("");
@@ -15,6 +17,13 @@ export default function Login(props: MacActions) {
   const [period, setPeriod] = useState(moment().format("A"));
   const [date, setDate] = useState(moment().format("dddd, MMMM D"));
 
+  const deviceMode = useDeviceMode();
+  const isMobile = deviceMode === "mobile";
+
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   useEffect(() => {
     const interval = setInterval(() => {
       setTime(moment().format("h:mm"));
@@ -25,7 +34,49 @@ export default function Login(props: MacActions) {
     return () => clearInterval(interval);
   }, []);
 
+  // Safe fallback: If user resizes from desktop to mobile while on the login panel,
+  // reset isloginOpen so mobile never renders an invalid stage.
+  useEffect(() => {
+    if (isMobile && isloginOpen) {
+      setIsLoginOpen(false);
+    }
+  }, [isMobile, isloginOpen]);
+
+  // Pointer event gesture tracking for swipe-up on mobile
+  const pointerStartRef = useRef<{ y: number; time: number } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isMobile) return;
+    pointerStartRef.current = { y: e.clientY, time: Date.now() };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isMobile) return;
+    if (!pointerStartRef.current) return;
+    const deltaY = pointerStartRef.current.y - e.clientY;
+    pointerStartRef.current = null;
+
+    // Upward swipe (deltaY > 30px) or tap (small movement) -> directly unlock to home
+    if (deltaY > 30 || Math.abs(deltaY) < 15) {
+      props.setLogin(true);
+    }
+  };
+
+  const handlePointerCancel = () => {
+    pointerStartRef.current = null;
+  };
+
+  const handleContainerClick = () => {
+    if (isMobile) {
+      // In mobile mode, any tap directly unlocks to home
+      props.setLogin(true);
+    } else {
+      if (!isloginOpen) setIsLoginOpen(true);
+    }
+  };
+
   const keyPress = (e: React.KeyboardEvent) => {
+    if (isMobile) return; // Keyboard "Enter to sign in" disabled on mobile
     const keyCode = e.key;
     if (keyCode === "Enter" || keyCode === "Space" || keyCode === "Tab")
       props.setLogin(true);
@@ -37,47 +88,64 @@ export default function Login(props: MacActions) {
 
   return (
     <div
-      className="size-full login text-center relative overflow-hidden"
+      className="size-full login text-center relative overflow-hidden select-none"
       style={{
+        minHeight: "100dvh",
+        height: "100%",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         background: `url(${
           dark ? activeWallpaper.night : activeWallpaper.day
         }) center/cover no-repeat`,
+        touchAction: isMobile ? "pan-y" : "auto",
       }}
-      onClick={() => !isloginOpen && setIsLoginOpen(true)}
+      onClick={handleContainerClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onKeyDown={!isMobile ? keyPress : undefined}
     >
       <AnimatePresence mode="wait">
-        {isloginOpen ? (
+        {/* On mobile, the macOS login panel NEVER mounts, renders, or flashes */}
+        {isloginOpen && !isMobile ? (
           <motion.div
             key="login-panel"
             className="size-full absolute inset-0"
             style={{
-              backgroundColor: 'rgba(0,0,0,0.15)',
-              backdropFilter: 'blur(60px) saturate(200%)',
-              WebkitBackdropFilter: 'blur(60px) saturate(200%)',
+              backgroundColor: "rgba(0,0,0,0.15)",
+              backdropFilter: "blur(60px) saturate(200%)",
+              WebkitBackdropFilter: "blur(60px) saturate(200%)",
             }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.5,
+              ease: [0.25, 0.1, 0.25, 1],
+            }}
             onKeyDown={keyPress}
           >
             <motion.div
               className="inline-block w-auto relative top-1/2"
-              style={{ marginTop: '-160px' }}
+              style={{ marginTop: "-160px" }}
               initial={{ opacity: 0, y: 30, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.5,
+                delay: prefersReducedMotion ? 0 : 0.1,
+                ease: [0.25, 0.1, 0.25, 1],
+              }}
             >
               {/* Avatar with ring */}
               <div
                 style={{
-                  width: '88px',
-                  height: '88px',
-                  margin: '0 auto',
-                  borderRadius: '50%',
-                  padding: '3px',
-                  background: 'rgba(255,255,255,0.2)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                  width: "88px",
+                  height: "88px",
+                  margin: "0 auto",
+                  borderRadius: "50%",
+                  padding: "3px",
+                  background: "rgba(255,255,255,0.2)",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
                 }}
               >
                 <img
@@ -85,8 +153,8 @@ export default function Login(props: MacActions) {
                   src={user.avatar}
                   alt="avatar"
                   style={{
-                    objectFit: 'cover',
-                    border: '2px solid rgba(255,255,255,0.15)',
+                    objectFit: "cover",
+                    border: "2px solid rgba(255,255,255,0.15)",
                   }}
                 />
               </div>
@@ -95,50 +163,55 @@ export default function Login(props: MacActions) {
               <div
                 className="font-display"
                 style={{
-                  marginTop: '12px',
-                  fontSize: '17px',
+                  marginTop: "12px",
+                  fontSize: "17px",
                   fontWeight: 500,
-                  color: 'white',
-                  letterSpacing: '0.3px',
-                  textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+                  color: "white",
+                  letterSpacing: "0.3px",
+                  textShadow: "0 1px 4px rgba(0,0,0,0.3)",
                 }}
               >
                 {user.name}
               </div>
 
-              {/* Login button styled as password field */}
+              {/* Login button */}
               <motion.div
                 className="flex justify-center items-center mt-3"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
+                transition={{
+                  delay: prefersReducedMotion ? 0 : 0.3,
+                  duration: prefersReducedMotion ? 0 : 0.4,
+                }}
               >
                 <button
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '6px 24px',
-                    borderRadius: '20px',
-                    border: '0.5px solid rgba(255,255,255,0.25)',
-                    background: 'rgba(255,255,255,0.12)',
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    color: 'white',
-                    fontSize: '13px',
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "6px 24px",
+                    borderRadius: "20px",
+                    border: "0.5px solid rgba(255,255,255,0.25)",
+                    background: "rgba(255,255,255,0.12)",
+                    backdropFilter: "blur(10px)",
+                    WebkitBackdropFilter: "blur(10px)",
+                    color: "white",
+                    fontSize: "13px",
                     fontWeight: 400,
-                    letterSpacing: '0.3px',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    letterSpacing: "0.3px",
+                    cursor: "pointer",
+                    outline: "none",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                   }}
                   onMouseEnter={(e) => {
-                    (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.2)';
+                    (e.target as HTMLElement).style.background =
+                      "rgba(255,255,255,0.2)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.12)';
+                    (e.target as HTMLElement).style.background =
+                      "rgba(255,255,255,0.12)";
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -146,7 +219,10 @@ export default function Login(props: MacActions) {
                   }}
                   onKeyDown={keyPress}
                 >
-                  <span className="i-ph:arrow-elbow-down-left" style={{ fontSize: '14px', opacity: 0.8 }} />
+                  <span
+                    className="i-ph:arrow-elbow-down-left"
+                    style={{ fontSize: "14px", opacity: 0.8 }}
+                  />
                   Sign In
                 </button>
               </motion.div>
@@ -154,66 +230,78 @@ export default function Login(props: MacActions) {
               {/* Touch ID hint */}
               <motion.div
                 style={{
-                  marginTop: '16px',
-                  fontSize: '11px',
-                  color: 'rgba(255,255,255,0.5)',
-                  letterSpacing: '0.2px',
+                  marginTop: "16px",
+                  fontSize: "11px",
+                  color: "rgba(255,255,255,0.5)",
+                  letterSpacing: "0.2px",
                 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
+                transition={{
+                  delay: prefersReducedMotion ? 0 : 0.5,
+                  duration: prefersReducedMotion ? 0 : 0.5,
+                }}
               >
                 Press Enter to sign in
               </motion.div>
             </motion.div>
 
-            {/* Power buttons */}
+            {/* Power buttons (desktop only) */}
             <motion.div
               className="fixed bottom-12 inset-x-0 mx-auto flex flex-row space-x-6 w-max"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : 0.4,
+                duration: prefersReducedMotion ? 0 : 0.5,
+              }}
             >
               {[
-                { label: 'Sleep', icon: 'i-ph:moon-stars', action: props.sleepMac },
-                { label: 'Restart', icon: 'i-ph:arrow-clockwise', action: props.restartMac },
-                { label: 'Shut Down', icon: 'i-ph:power', action: props.shutMac },
+                { label: "Sleep", icon: "i-ph:moon-stars", action: props.sleepMac },
+                {
+                  label: "Restart",
+                  icon: "i-ph:arrow-clockwise",
+                  action: props.restartMac,
+                },
+                { label: "Shut Down", icon: "i-ph:power", action: props.shutMac },
               ].map((item) => (
                 <div
                   key={item.label}
                   className="flex flex-col items-center cursor-pointer group"
-                  style={{ width: '72px' }}
+                  style={{ width: "72px" }}
                   onClick={(e) => item.action(e)}
                 >
                   <div
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(255,255,255,0.1)',
-                      backdropFilter: 'blur(10px)',
-                      border: '0.5px solid rgba(255,255,255,0.15)',
-                      transition: 'background 0.2s ease, transform 0.15s ease',
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(255,255,255,0.1)",
+                      backdropFilter: "blur(10px)",
+                      border: "0.5px solid rgba(255,255,255,0.15)",
+                      transition: "background 0.2s ease, transform 0.15s ease",
                     }}
                     onMouseEnter={(e) => {
-                      (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.2)';
-                      (e.target as HTMLElement).style.transform = 'scale(1.08)';
+                      (e.target as HTMLElement).style.background =
+                        "rgba(255,255,255,0.2)";
+                      (e.target as HTMLElement).style.transform = "scale(1.08)";
                     }}
                     onMouseLeave={(e) => {
-                      (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.1)';
-                      (e.target as HTMLElement).style.transform = 'scale(1)';
+                      (e.target as HTMLElement).style.background =
+                        "rgba(255,255,255,0.1)";
+                      (e.target as HTMLElement).style.transform = "scale(1)";
                     }}
                   >
                     <span className={`${item.icon} text-white text-lg`} />
                   </div>
                   <span
                     style={{
-                      marginTop: '6px',
-                      fontSize: '11px',
-                      color: 'rgba(255,255,255,0.7)',
+                      marginTop: "6px",
+                      fontSize: "11px",
+                      color: "rgba(255,255,255,0.7)",
                       fontWeight: 400,
                     }}
                   >
@@ -227,28 +315,47 @@ export default function Login(props: MacActions) {
           <motion.div
             key="lock-screen"
             className="size-full flex flex-col justify-between items-center relative"
+            style={{
+              minHeight: "100dvh",
+              height: "100%",
+              paddingTop: "max(16px, env(safe-area-inset-top, 16px))",
+              paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.6 }}
+            exit={
+              isMobile
+                ? {
+                    opacity: 0,
+                    y: prefersReducedMotion ? 0 : "-15%",
+                    scale: prefersReducedMotion ? 1 : 0.98,
+                    transition: { duration: prefersReducedMotion ? 0 : 0.35, ease: [0.32, 0.72, 0, 1] },
+                  }
+                : { opacity: 0, scale: 1.05, transition: { duration: prefersReducedMotion ? 0 : 0.6 } }
+            }
+            transition={{ duration: prefersReducedMotion ? 0 : 0.6 }}
           >
             {/* Lock screen clock */}
             <motion.div
               className="flex flex-col items-center"
-              style={{ paddingTop: 'clamp(60px, 12vh, 120px)' }}
+              style={{ paddingTop: isMobile ? "max(40px, 8dvh)" : "clamp(60px, 12vh, 120px)" }}
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.8,
+                delay: prefersReducedMotion ? 0 : 0.2,
+                ease: [0.25, 0.1, 0.25, 1],
+              }}
             >
               <div
                 className="font-rounded font-tabular"
                 style={{
-                  fontSize: 'clamp(72px, 12vw, 110px)',
+                  fontSize: isMobile ? "clamp(72px, 20vw, 96px)" : "clamp(72px, 12vw, 110px)",
                   fontWeight: 800,
-                  color: 'white',
-                  letterSpacing: '-2px',
+                  color: "white",
+                  letterSpacing: "-2px",
                   lineHeight: 1,
-                  textShadow: '0 2px 20px rgba(0,0,0,0.3)',
+                  textShadow: "0 2px 20px rgba(0,0,0,0.3)",
                 }}
               >
                 {time}
@@ -256,39 +363,68 @@ export default function Login(props: MacActions) {
               <div
                 className="font-rounded"
                 style={{
-                  marginTop: '8px',
-                  fontSize: 'clamp(16px, 2.5vw, 22px)',
+                  marginTop: "8px",
+                  fontSize: isMobile ? "17px" : "clamp(16px, 2.5vw, 22px)",
                   fontWeight: 600,
-                  color: 'rgba(255,255,255,0.85)',
-                  letterSpacing: '0.5px',
-                  textShadow: '0 1px 8px rgba(0,0,0,0.2)',
+                  color: "rgba(255,255,255,0.85)",
+                  letterSpacing: "0.5px",
+                  textShadow: "0 1px 8px rgba(0,0,0,0.2)",
                 }}
               >
                 {date}
               </div>
             </motion.div>
 
-            {/* Click to unlock hint */}
+            {/* Bottom unlock hint */}
             <motion.div
               style={{
-                paddingBottom: '48px',
+                paddingBottom: isMobile ? "max(16px, env(safe-area-inset-bottom, 16px))" : "48px",
               }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 1, duration: 0.8 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : 0.6,
+                duration: prefersReducedMotion ? 0 : 0.8,
+              }}
             >
-              <div
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 300,
-                  color: 'rgba(255,255,255,0.6)',
-                  letterSpacing: '0.5px',
-                  animation: 'subtlePulse 3s ease-in-out infinite',
-                  cursor: 'pointer',
-                }}
-              >
-                Click anywhere to unlock
-              </div>
+              {isMobile ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 300,
+                      color: "rgba(255,255,255,0.75)",
+                      letterSpacing: "0.5px",
+                      textShadow: "0 1px 6px rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    Swipe up or tap to unlock
+                  </div>
+                  {/* iPhone Home Indicator Bar */}
+                  <div
+                    style={{
+                      width: "134px",
+                      height: "5px",
+                      borderRadius: "100px",
+                      backgroundColor: "rgba(255, 255, 255, 0.85)",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 300,
+                    color: "rgba(255,255,255,0.6)",
+                    letterSpacing: "0.5px",
+                    animation: "subtlePulse 3s ease-in-out infinite",
+                    cursor: "pointer",
+                  }}
+                >
+                  Click anywhere to unlock
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
