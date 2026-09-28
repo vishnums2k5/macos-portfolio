@@ -40,9 +40,6 @@ const COLORS = {
   purple: "#bf5af2",
 };
 
-// ── Traffic light colors ──────────────────────────────────────────────────────
-const TL = { red: "#ff5f57", yellow: "#febc2e", green: "#28c840" };
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 let lineCounter = 0;
 const uid = () => lineCounter++;
@@ -68,7 +65,7 @@ export default function Terminal() {
   const [rmrfActive, setRmrfActive] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef<OutputLine[]>([]);
   linesRef.current = lines;
 
@@ -109,9 +106,11 @@ export default function Terminal() {
     setLines((prev) => [...prev, line]);
   }, []);
 
-  // ── Scroll to bottom on new lines ─────────────────────────────────────────
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  // ── Scroll to bottom on new lines inside outputRef ONLY ─────────────────────
+  useLayoutEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
   }, [lines]);
 
   // ── Boot message ─────────────────────────────────────────────────────────────
@@ -132,7 +131,7 @@ export default function Terminal() {
     ];
     bootLines.forEach((line) => addLine(line, "system"));
 
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
   }, []);
 
   // ── Commands ─────────────────────────────────────────────────────────────────
@@ -413,6 +412,7 @@ export default function Terminal() {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
+        e.preventDefault();
         const raw = inputValue;
         const dirPath = curDirPathRef.current;
 
@@ -494,12 +494,14 @@ export default function Terminal() {
         fontSize: 13,
         color: COLORS.text,
       }}
-      onClick={() => inputRef.current?.focus()}
+      onClick={() => inputRef.current?.focus({ preventScroll: true })}
     >
       {/* ── Terminal Output ── */}
       <div
+        ref={outputRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           padding: "10px 16px",
           lineHeight: 1.65,
@@ -539,14 +541,12 @@ export default function Terminal() {
                 fontSize: "inherit",
                 lineHeight: "inherit",
                 width: "100%",
-                caretColor: COLORS.prompt.green,
+                caretColor: COLORS.prompt.user,
                 padding: 0,
               }}
             />
           </div>
         </div>
-
-        <div ref={bottomRef} />
       </div>
 
       {/* ── Status bar ── */}

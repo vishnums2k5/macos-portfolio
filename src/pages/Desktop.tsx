@@ -74,6 +74,25 @@ export default function Desktop(props: MacActions) {
     window.dispatchEvent(new CustomEvent("launchpad:openSafari"));
   };
 
+  // Prevent any programmatic scrolling from shifting the macOS desktop
+  useEffect(() => {
+    const lockScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement.scrollTop !== 0 || document.documentElement.scrollLeft !== 0) {
+        document.documentElement.scrollTop = 0;
+        document.documentElement.scrollLeft = 0;
+      }
+      if (document.body.scrollTop !== 0 || document.body.scrollLeft !== 0) {
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+      }
+    };
+    window.addEventListener("scroll", lockScroll, { passive: true });
+    return () => window.removeEventListener("scroll", lockScroll);
+  }, []);
+
   // Listen for cross-component events and global keyboard shortcuts
   useEffect(() => {
     const handleOpenSafari = () => {
@@ -284,7 +303,7 @@ export default function Desktop(props: MacActions) {
   return (
     <div
       className="size-full overflow-hidden bg-center bg-cover"
-      style={bgStyle}
+      style={{ ...bgStyle, overflow: "clip" }}
       onContextMenu={handleContextMenu}
     >
       {/* Top Menu Bar */}
