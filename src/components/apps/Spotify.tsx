@@ -211,9 +211,32 @@ export default function Spotify() {
     }
   };
 
+  // ── Resolve YouTube video ID via Vercel serverless function ──────────────────
+  const resolveAndPlay = useCallback(
+    async (track: Track) => {
+      const query = track.youtubeQuery || `${track.title} ${track.artist}`;
+      try {
+        const res = await fetch(`/api/yt-search?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const videoId: string = data.videoId;
+          if (videoId && ytPlayerRef.current) {
+            ytPlayerRef.current.loadVideoById({ videoId, startSeconds: 0 });
+            return;
+          }
+        }
+      } catch (_) {}
+      // fallback: still try loadPlaylist search
+      try {
+        ytPlayerRef.current?.loadPlaylist({ listType: "search", list: query });
+      } catch (_) {}
+    },
+    []
+  );
+
   // ── Play a track ──────────────────────────────────────────────────────────────
   const playTrack = useCallback(
-    (track: Track, autoPlay = true) => {
+    (track: Track) => {
       setCurrentTrack(track);
       setYtTime(0);
       setYtDuration(0);
@@ -225,31 +248,24 @@ export default function Spotify() {
           title: track.title,
           artist: track.artist,
           cover: track.thumbnail,
-          src: "", // YouTube is handling audio, no separate <audio> src needed
+          src: "",
           youtubeId: track.youtubeId,
         },
-        false // don't auto-play the HTML audio element
+        false
       );
 
       const p = ytPlayerRef.current;
       if (!p) return;
 
       if (track.youtubeId) {
-        // Direct video ID — instant load
+        // Direct video ID — instant, no lookup needed
         p.loadVideoById({ videoId: track.youtubeId, startSeconds: 0 });
       } else {
-        // Search by query — YouTube picks the best match automatically
-        const query = track.youtubeQuery || `${track.title} ${track.artist} official`;
-        p.loadPlaylist({ listType: "search", list: query });
-      }
-
-      if (!autoPlay) {
-        setTimeout(() => {
-          try { p.pauseVideo(); } catch (_) {}
-        }, 500);
+        // Search result — fetch real video ID from our Vercel API, then play
+        resolveAndPlay(track);
       }
     },
-    [audioCtrl]
+    [audioCtrl, resolveAndPlay]
   );
 
   // ── Timeline scrub ────────────────────────────────────────────────────────────
