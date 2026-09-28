@@ -238,8 +238,9 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
                         {audioState.playing ? <span className="i-ph:pause-fill text-xl" /> : <span className="i-ph:play-fill text-xl" />}
                       </button>
                       <button
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); controls.next(); }}
                         style={{ background: "none", border: "none", color: "white", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+                        title="Next Track"
                       >
                         <span className="i-ph:skip-forward-fill text-base" />
                       </button>

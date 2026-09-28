@@ -15,6 +15,8 @@ export interface ExternalPlayer {
   pause: () => void;
   toggle: () => void;
   seek?: (time: number) => void;
+  next?: () => void;
+  prev?: () => void;
 }
 
 export interface HTMLAudioState {
@@ -36,6 +38,8 @@ export interface HTMLAudioControls {
   setSong: (song: Partial<SongInfo> & { title: string }, autoPlay?: boolean) => void;
   setPlaying: (playing: boolean) => void;
   registerExternalPlayer: (player: ExternalPlayer | null) => void;
+  next: () => void;
+  prev: () => void;
 }
 
 export interface HTMLAudioProps {
@@ -167,6 +171,18 @@ export function useAudio(props: HTMLAudioProps) {
 
     registerExternalPlayer: (player: ExternalPlayer | null): void => {
       externalPlayerRef.current = player;
+    },
+
+    next: (): void => {
+      if (externalPlayerRef.current?.next) {
+        externalPlayerRef.current.next();
+      }
+    },
+
+    prev: (): void => {
+      if (externalPlayerRef.current?.prev) {
+        externalPlayerRef.current.prev();
+      }
     },
 
     setSong: (newSong: Partial<SongInfo> & { title: string }, autoPlay = true): void => {

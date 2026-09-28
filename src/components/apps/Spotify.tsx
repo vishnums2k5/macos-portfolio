@@ -123,6 +123,9 @@ export default function Spotify() {
 
   // Current track state managed locally (YouTube drives audio)
   const [currentTrack, setCurrentTrack] = useState<Track>(FEATURED_TRACKS[0]);
+  const [currentQueue, setCurrentQueue] = useState<Track[]>(FEATURED_TRACKS);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
   const [ytPlaying, setYtPlaying] = useState(false);
   const [ytTime, setYtTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(0);
@@ -134,6 +137,9 @@ export default function Spotify() {
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleNextTrackRef = useRef<() => void>(() => {});
+  const isRepeatRef = useRef(false);
+  isRepeatRef.current = isRepeat;
 
   // ── Load YouTube IFrame API ──────────────────────────────────────────────────
   useEffect(() => {
@@ -180,12 +186,22 @@ export default function Spotify() {
             setYtPlaying(true);
             audioCtrl.setPlaying(true);
             startTick();
-          } else if (state === YT_STATE.PAUSED || state === YT_STATE.ENDED) {
+          } else if (state === YT_STATE.PAUSED) {
             setYtPlaying(false);
             audioCtrl.setPlaying(false);
             stopTick();
-          } else if (state === YT_STATE.BUFFERING) {
-            // keep showing playing state
+          } else if (state === YT_STATE.ENDED) {
+            setYtPlaying(false);
+            audioCtrl.setPlaying(false);
+            stopTick();
+            if (isRepeatRef.current) {
+              try {
+                ytPlayerRef.current?.seekTo(0, true);
+                ytPlayerRef.current?.playVideo();
+              } catch (_) {}
+            } else {
+              handleNextTrackRef.current();
+            }
           }
         },
       },
@@ -238,8 +254,11 @@ export default function Spotify() {
 
   // ── Play a track ──────────────────────────────────────────────────────────────
   const playTrack = useCallback(
-    (track: Track) => {
+    (track: Track, newQueue?: Track[]) => {
       setCurrentTrack(track);
+      if (newQueue && newQueue.length > 0) {
+        setCurrentQueue(newQueue);
+      }
       setYtTime(0);
       setYtDuration(0);
       setLiked(true);
@@ -269,6 +288,53 @@ export default function Spotify() {
     },
     [audioCtrl, resolveAndPlay]
   );
+
+  // ── Next & Previous Track Handlers ──────────────────────────────────────────
+  const handleNextTrack = useCallback(() => {
+    const queue = currentQueue && currentQueue.length > 0 ? currentQueue : (searchResults.length > 0 ? searchResults : FEATURED_TRACKS);
+    if (!queue || queue.length === 0) return;
+
+    let nextIndex = 0;
+    const currentIndex = queue.findIndex(
+      (t) => t.id === currentTrack.id || (t.title === currentTrack.title && t.artist === currentTrack.artist)
+    );
+
+    if (isShuffle) {
+      if (queue.length > 1) {
+        do {
+          nextIndex = Math.floor(Math.random() * queue.length);
+        } while (nextIndex === currentIndex);
+      } else {
+        nextIndex = 0;
+      }
+    } else {
+      nextIndex = currentIndex >= 0 ? (currentIndex + 1) % queue.length : 0;
+    }
+
+    playTrack(queue[nextIndex]);
+  }, [currentQueue, searchResults, currentTrack, isShuffle, playTrack]);
+
+  handleNextTrackRef.current = handleNextTrack;
+
+  const handlePrevTrack = useCallback(() => {
+    if (ytTime > 3) {
+      try {
+        ytPlayerRef.current?.seekTo(0, true);
+        setYtTime(0);
+      } catch (_) {}
+      return;
+    }
+
+    const queue = currentQueue && currentQueue.length > 0 ? currentQueue : (searchResults.length > 0 ? searchResults : FEATURED_TRACKS);
+    if (!queue || queue.length === 0) return;
+
+    const currentIndex = queue.findIndex(
+      (t) => t.id === currentTrack.id || (t.title === currentTrack.title && t.artist === currentTrack.artist)
+    );
+
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
+    playTrack(queue[prevIndex]);
+  }, [ytTime, currentQueue, searchResults, currentTrack, playTrack]);
 
   // ── Timeline scrub ────────────────────────────────────────────────────────────
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,12 +380,18 @@ export default function Spotify() {
       seek: (time: number) => {
         try { ytPlayerRef.current?.seekTo(time, true); } catch (_) {}
       },
+      next: () => {
+        handleNextTrack();
+      },
+      prev: () => {
+        handlePrevTrack();
+      },
     });
 
     return () => {
       audioCtrl.registerExternalPlayer(null);
     };
-  }, [audioCtrl, togglePlay]);
+  }, [audioCtrl, togglePlay, handleNextTrack, handlePrevTrack]);
 
   const displayTime = isDragging ? dragTime : ytTime;
   const duration = ytDuration > 0 ? ytDuration : 0;
@@ -447,7 +519,7 @@ export default function Spotify() {
               {PLAYLISTS.map((pl) => (
                 <div
                   key={pl.id}
-                  onClick={() => { setView("home"); playTrack(FEATURED_TRACKS[0]); }}
+                  onClick={() => { setView("home"); playTrack(FEATURED_TRACKS[0], FEATURED_TRACKS); }}
                   style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 10px", borderRadius: "6px", cursor: "pointer" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -504,7 +576,7 @@ export default function Spotify() {
               <>
                 <h1 style={{ fontSize: "28px", fontWeight: 800, margin: "0 0 20px" }}>Welcome Back</h1>
                 <div
-                  onClick={() => playTrack(FEATURED_TRACKS[0])}
+                  onClick={() => playTrack(FEATURED_TRACKS[0], FEATURED_TRACKS)}
                   style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", padding: "10px 16px", marginBottom: "32px", cursor: "pointer", maxWidth: "320px", transition: "background 0.2s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
@@ -522,7 +594,7 @@ export default function Spotify() {
                       key={track.id}
                       track={track}
                       active={currentTrack.id === track.id && ytPlaying}
-                      onPlay={() => playTrack(track)}
+                      onPlay={() => playTrack(track, FEATURED_TRACKS)}
                     />
                   ))}
                 </div>
@@ -573,7 +645,7 @@ export default function Spotify() {
                           track={track}
                           index={i + 1}
                           active={currentTrack.id === track.id && ytPlaying}
-                          onPlay={() => playTrack(track)}
+                          onPlay={() => playTrack(track, searchResults)}
                         />
                       ))}
                     </div>
@@ -627,8 +699,27 @@ export default function Spotify() {
         {/* Center Controls + Timeline */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", flex: 1, maxWidth: "540px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-            <button style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}>⇄</button>
-            <button onClick={() => playTrack(FEATURED_TRACKS[0])} style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}>⏮</button>
+            <button
+              title="Shuffle"
+              onClick={() => setIsShuffle(!isShuffle)}
+              style={{
+                background: "none",
+                border: "none",
+                color: isShuffle ? "#1DB954" : "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+                transition: "color 0.15s ease",
+              }}
+            >
+              ⇄
+            </button>
+            <button
+              title="Previous"
+              onClick={handlePrevTrack}
+              style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}
+            >
+              ⏮
+            </button>
             <button
               onClick={togglePlay}
               style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#FFFFFF", border: "none", color: "#000", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "transform 0.1s ease" }}
@@ -637,8 +728,27 @@ export default function Spotify() {
             >
               {ytPlaying ? "⏸" : "▶"}
             </button>
-            <button onClick={() => playTrack(FEATURED_TRACKS[1])} style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}>⏭</button>
-            <button style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}>↺</button>
+            <button
+              title="Next"
+              onClick={handleNextTrack}
+              style={{ background: "none", border: "none", color: "#B3B3B3", fontSize: "16px", cursor: "pointer" }}
+            >
+              ⏭
+            </button>
+            <button
+              title="Repeat"
+              onClick={() => setIsRepeat(!isRepeat)}
+              style={{
+                background: "none",
+                border: "none",
+                color: isRepeat ? "#1DB954" : "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+                transition: "color 0.15s ease",
+              }}
+            >
+              ↺
+            </button>
           </div>
 
           {/* Interactive Seek Timeline */}
