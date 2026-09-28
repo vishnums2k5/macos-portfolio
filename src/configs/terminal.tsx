@@ -18,7 +18,9 @@ const terminal: TerminalData[] = [
             <div className="mt-2 text-gray-300">
               I build AI-integrated apps in Swift, TypeScript, and Python. My work includes{" "}
               <a className="text-blue-300 underline" href="https://www.type-shit.app/" target="_blank" rel="noreferrer">TypeFlux</a> (native macOS AI copilot),{" "}
-              <a className="text-blue-300 underline" href="https://chesswise-web.vercel.app/" target="_blank" rel="noreferrer">ChessWise</a> (chess coach pairing Stockfish with Gemini), and two Chrome extensions, LLM Council and Universal Chat Cleaner, used by 150+ people.
+              <a className="text-blue-300 underline" href="https://chesswise-web.vercel.app/" target="_blank" rel="noreferrer">ChessWise</a> (chess coach pairing Stockfish with Gemini), and two Chrome extensions,{" "}
+              <a className="text-blue-300 underline" href="https://chromewebstore.google.com/detail/llm-council-compare-ai-re/agnfmnfjhehoooaagjlbpdkkibjfaage" target="_blank" rel="noreferrer">LLM Council</a> and{" "}
+              <a className="text-blue-300 underline" href="https://chromewebstore.google.com/detail/universal-chat-cleaner-bu/dlkglncfoaegojplnhalffbgagnailcb" target="_blank" rel="noreferrer">Universal Chat Cleaner</a>, used by 150+ people.
             </div>
             <div className="mt-2 text-gray-400">
               📍 Bengaluru, Karnataka, India

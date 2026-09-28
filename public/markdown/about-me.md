@@ -7,8 +7,9 @@ I'm **Vishnu M S**, a second-year B.Tech CSE (AI & ML) student at Polaris School
 I build AI-integrated apps in Swift, TypeScript, and Python. My work includes
 [TypeFlux](https://www.type-shit.app/), a native macOS AI copilot;
 [ChessWise](https://chesswise-web.vercel.app/), a chess coach that pairs Stockfish
-evaluations with Gemini; and two Chrome extensions, LLM Council and Universal Chat
-Cleaner, used by 150+ people.
+evaluations with Gemini; and two Chrome extensions,
+[LLM Council](https://chromewebstore.google.com/detail/llm-council-compare-ai-re/agnfmnfjhehoooaagjlbpdkkibjfaage) and
+[Universal Chat Cleaner](https://chromewebstore.google.com/detail/universal-chat-cleaner-bu/dlkglncfoaegojplnhalffbgagnailcb), used by 150+ people.
 
 📍 Bengaluru, Karnataka, India
 
