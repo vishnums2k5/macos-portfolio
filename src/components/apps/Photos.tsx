@@ -8,25 +8,25 @@ interface Photo {
   liked?: boolean;
 }
 
-// Using Picsum for placeholder photos
+// Real high-resolution photography of iconic Bangalore landmarks
 const PHOTOS: Photo[] = [
-  { id: "1", url: "https://picsum.photos/seed/macos1/400/300", label: "Bengaluru Skyline", date: "Jun 1, 2025" },
-  { id: "2", url: "https://picsum.photos/seed/macos2/400/300", label: "Cubbon Park Walk", date: "May 28, 2025", liked: true },
-  { id: "3", url: "https://picsum.photos/seed/macos3/400/300", label: "Indiranagar Hub", date: "May 20, 2025" },
-  { id: "4", url: "https://picsum.photos/seed/macos4/400/300", label: "Tech Meetup", date: "May 15, 2025", liked: true },
-  { id: "5", url: "https://picsum.photos/seed/macos5/400/300", label: "TypeFlux UI Prototype", date: "May 10, 2025" },
-  { id: "6", url: "https://picsum.photos/seed/macos6/400/300", label: "LLM Council Architecture", date: "Apr 30, 2025" },
-  { id: "7", url: "https://picsum.photos/seed/macos7/400/300", label: "Portfolio Screenshot", date: "Apr 20, 2025" },
-  { id: "8", url: "https://picsum.photos/seed/macos8/400/300", label: "Late Night Build Session", date: "Apr 10, 2025" },
-  { id: "9", url: "https://picsum.photos/seed/macos9/400/300", label: "Hackathon Victory", date: "Apr 1, 2025" },
+  { id: "1", url: "img/photos/vidhana-soudha.jpg", label: "Vidhana Soudha", date: "Jan 15, 2026", liked: true },
+  { id: "2", url: "img/photos/bangalore-palace.jpg", label: "Bangalore Palace", date: "Jan 22, 2026", liked: true },
+  { id: "3", url: "img/photos/cubbon-park.jpg", label: "Cubbon Park", date: "Feb 5, 2026" },
+  { id: "4", url: "img/photos/lalbagh-glass-house.jpg", label: "Lalbagh Glass House", date: "Feb 18, 2026", liked: true },
+  { id: "5", url: "img/photos/tipu-summer-palace.jpg", label: "Tipu Sultan's Summer Palace", date: "Mar 2, 2026" },
+  { id: "6", url: "img/photos/ub-city.jpg", label: "UB City & Lavelle Road", date: "Mar 12, 2026" },
+  { id: "7", url: "img/photos/nandi-hills.jpg", label: "Nandi Hills Sunrise", date: "Apr 5, 2026", liked: true },
+  { id: "8", url: "img/photos/ulsoor-lake.jpg", label: "Ulsoor Lake", date: "Apr 18, 2026" },
+  { id: "9", url: "img/photos/iskcon-temple.jpg", label: "ISKCON Temple Bangalore", date: "May 2, 2026" },
 ];
 
 const ALBUMS = [
   { id: "recents", label: "Recents", icon: "i-ph:clock", count: 9 },
-  { id: "favorites", label: "Favourites", icon: "i-ph:heart-fill", count: 2 },
-  { id: "bengaluru", label: "Bengaluru", icon: "i-ph:buildings", count: 4 },
-  { id: "projects", label: "Projects", icon: "i-ph:laptop", count: 2 },
-  { id: "people", label: "People", icon: "i-ph:users", count: 3 },
+  { id: "favorites", label: "Favourites", icon: "i-ph:heart-fill", count: 4 },
+  { id: "landmarks", label: "Landmarks", icon: "i-ph:buildings", count: 9 },
+  { id: "parks", label: "Parks & Lakes", icon: "i-ph:tree", count: 3 },
+  { id: "heritage", label: "Heritage", icon: "i-ph:bank", count: 4 },
 ];
 
 export default function Photos() {
@@ -36,7 +36,13 @@ export default function Photos() {
   const [viewPhoto, setViewPhoto] = useState<Photo | null>(null);
 
   const displayed =
-    activeAlbum === "favorites" ? photos.filter((p) => p.liked) : photos;
+    activeAlbum === "favorites"
+      ? photos.filter((p) => p.liked)
+      : activeAlbum === "parks"
+      ? photos.filter((p) => ["3", "4", "7", "8"].includes(p.id))
+      : activeAlbum === "heritage"
+      ? photos.filter((p) => ["1", "2", "5", "9"].includes(p.id))
+      : photos;
 
   const toggleLike = (id: string) => {
     setPhotos((prev) =>
