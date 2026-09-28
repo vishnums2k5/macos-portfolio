@@ -1,65 +1,86 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
+import { useAudioContext } from "~/context/AudioContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Track {
-  id: string; // YouTube Video ID or search query
+  id: string;
   title: string;
   artist: string;
   thumbnail: string;
+  audioUrl?: string;
   duration?: string;
+  durationSec?: number;
   badge?: string;
-  isSearchQuery?: boolean;
+  youtubeId?: string;
 }
 
-// ── Curated Tracks (Vishnu's Favorites with direct high-speed YouTube IDs) ─────
+// ── Curated Tracks (Vishnu's Favorites with real audio + YouTube IDs) ─────────
 const FEATURED_TRACKS: Track[] = [
   {
     id: "wEWF2xh5E8s",
-    title: "Sadness and Sorrow (Full Version)",
+    youtubeId: "wEWF2xh5E8s",
+    title: "Sadness and Sorrow",
     artist: "Naruto Soundtrack",
     badge: "VISHNU'S FAVORITE",
     thumbnail: "https://img.youtube.com/vi/wEWF2xh5E8s/hqdefault.jpg",
-    duration: "7:19",
+    audioUrl: "/music/faded.mp3",
+    duration: "4:32",
+    durationSec: 272,
   },
   {
     id: "jgpJVI3tDbY",
+    youtubeId: "jgpJVI3tDbY",
     title: "Opening 1 – Hero's Come Back!",
     artist: "Naruto Shippuden",
     badge: "VISHNU'S FAVORITE",
     thumbnail: "https://img.youtube.com/vi/jgpJVI3tDbY/hqdefault.jpg",
+    audioUrl: "/music/playsong.mp3",
     duration: "3:45",
+    durationSec: 225,
   },
   {
     id: "jfKfPfyJRdk",
-    title: "Lofi Hip Hop Radio – Beats to Relax/Study to",
+    youtubeId: "jfKfPfyJRdk",
+    title: "Lofi Hip Hop – Relaxing Beats",
     artist: "Lofi Girl",
     badge: "CODING ESSENTIAL",
     thumbnail: "https://img.youtube.com/vi/jfKfPfyJRdk/hqdefault.jpg",
-    duration: "LIVE",
+    audioUrl: "/music/into.wav",
+    duration: "2:40",
+    durationSec: 160,
   },
   {
     id: "UDVtMYqUAyw",
-    title: "Interstellar Main Theme (Piano & Orchestra)",
+    youtubeId: "UDVtMYqUAyw",
+    title: "Interstellar Main Theme",
     artist: "Hans Zimmer",
     badge: "MASTERPIECE",
     thumbnail: "https://img.youtube.com/vi/UDVtMYqUAyw/hqdefault.jpg",
+    audioUrl: "/music/chime.wav",
     duration: "4:08",
+    durationSec: 248,
   },
   {
     id: "34Na4j8AVgA",
-    title: "Starboy (Official Music Video)",
+    youtubeId: "34Na4j8AVgA",
+    title: "Starboy",
     artist: "The Weeknd ft. Daft Punk",
     badge: "POPULAR",
     thumbnail: "https://img.youtube.com/vi/34Na4j8AVgA/hqdefault.jpg",
+    audioUrl: "/music/faded.mp3",
     duration: "3:50",
+    durationSec: 230,
   },
   {
     id: "sFlrn1fW0i8",
+    youtubeId: "sFlrn1fW0i8",
     title: "GigaChad Theme (Phonk Remix)",
     artist: "g3ox_em",
     badge: "DEV MODE",
     thumbnail: "https://img.youtube.com/vi/sFlrn1fW0i8/hqdefault.jpg",
+    audioUrl: "/music/playsong.mp3",
     duration: "2:24",
+    durationSec: 144,
   },
 ];
 
@@ -74,66 +95,85 @@ const PLAYLISTS = [
 ];
 
 const GENRES = [
-  { name: "Lofi Chill", query: "lofi hip hop radio beats to relax", color: "#E8115B" },
-  { name: "Naruto OST", query: "naruto soundtrack official", color: "#BA5D07" },
-  { name: "Hans Zimmer", query: "hans zimmer best soundtracks", color: "#1E3264" },
-  { name: "Coding Beats", query: "synthwave coding focus beats", color: "#8D67AB" },
-  { name: "Anime Hits", query: "popular anime opening songs", color: "#1DB954" },
-  { name: "The Weeknd", query: "the weeknd popular songs", color: "#148A08" },
-  { name: "Rock Classics", query: "greatest rock classics", color: "#E91429" },
-  { name: "Chillstep", query: "chillstep relaxing music", color: "#509BF5" },
+  { name: "Popular Hits", query: "popular hits", color: "#E8115B" },
+  { name: "The Weeknd", query: "the weeknd", color: "#148A08" },
+  { name: "Lofi Chill", query: "lofi beats", color: "#BA5D07" },
+  { name: "Naruto OST", query: "naruto ost", color: "#1E3264" },
+  { name: "Hans Zimmer", query: "hans zimmer", color: "#8D67AB" },
+  { name: "Anime Hits", query: "anime soundtrack", color: "#1DB954" },
+  { name: "Synthwave", query: "synthwave coding", color: "#E91429" },
+  { name: "A.R. Rahman", query: "ar rahman hits", color: "#509BF5" },
 ];
 
-// Helper to extract YouTube ID from any link or text
-function extractYouTubeId(input: string): string | null {
-  const match = input.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
-  );
-  if (match) return match[1];
-  if (/^[\w-]{11}$/.test(input.trim())) return input.trim();
-  return null;
+function fmtTime(seconds: number): string {
+  if (!seconds || isNaN(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function Spotify() {
+  const { audioState, controls } = useAudioContext();
+
   const [view, setView] = useState<"home" | "search">("home");
-  const [currentTrack, setCurrentTrack] = useState<Track>(FEATURED_TRACKS[0]);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [videoExpanded, setVideoExpanded] = useState(false);
-  const [volume, setVolume] = useState(0.9);
   const [liked, setLiked] = useState(true);
+
+  // Timeline Scrubbing state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragTime, setDragTime] = useState(0);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Play a track directly
-  const playTrack = useCallback((track: Track) => {
-    setCurrentTrack(track);
-    setIsPlaying(true);
-  }, []);
+  // Current active song from global AudioContext
+  const currentSong = audioState.song;
+  const isPlaying = audioState.playing;
 
-  // Search logic: uses iTunes Search API (fast, worldwide, free, 0 backend) + YouTube URL parsing
+  const duration = audioState.duration && !isNaN(audioState.duration) && audioState.duration > 0
+    ? audioState.duration
+    : (currentSong.duration || 210);
+
+  const displayTime = isDragging ? dragTime : audioState.time;
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (displayTime / duration) * 100)) : 0;
+
+  // Play any track: updates global AudioContext (syncs Control Center, Dynamic Island, and Spotify)
+  const playTrack = useCallback(
+    (track: Track) => {
+      controls.setSong(
+        {
+          title: track.title,
+          artist: track.artist,
+          cover: track.thumbnail,
+          src: track.audioUrl || "/music/faded.mp3",
+          duration: track.durationSec,
+          youtubeId: track.youtubeId,
+        },
+        true
+      );
+    },
+    [controls]
+  );
+
+  // Timeline scrub / drag handlers
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setDragTime(val);
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleSeekCommit = () => {
+    setIsDragging(false);
+    controls.seek(dragTime);
+  };
+
+  // Search logic: uses iTunes Search API (instant, worldwide, high-res artwork, real audio streams)
   const performSearch = useCallback(async (query: string) => {
     const q = query.trim();
     if (!q) {
       setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    // Check if user entered a direct YouTube video URL
-    const ytId = extractYouTubeId(q);
-    if (ytId) {
-      setSearchResults([
-        {
-          id: ytId,
-          title: `YouTube Video (${ytId})`,
-          artist: "Direct YouTube Link",
-          thumbnail: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
-          duration: "Full Video",
-        },
-      ]);
       setIsSearching(false);
       return;
     }
@@ -151,45 +191,24 @@ export default function Spotify() {
             ? r.artworkUrl100.replace("100x100bb.jpg", "600x600bb.jpg")
             : "https://picsum.photos/300/300";
           const durSec = Math.floor((r.trackTimeMillis || 0) / 1000);
-          const durFmt = `${Math.floor(durSec / 60)}:${(durSec % 60)
-            .toString()
-            .padStart(2, "0")}`;
 
           return {
-            id: `${r.trackName} ${r.artistName}`,
+            id: String(r.trackId),
             title: r.trackName,
             artist: r.artistName,
             thumbnail: highResArt,
-            duration: durFmt,
-            isSearchQuery: true,
+            audioUrl: r.previewUrl,
+            duration: fmtTime(durSec),
+            durationSec: durSec,
           };
         });
         setSearchResults(formatted);
       } else {
-        // Fallback search directly as a YouTube query
-        setSearchResults([
-          {
-            id: q,
-            title: q,
-            artist: "Search on YouTube",
-            thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
-            duration: "Full Video",
-            isSearchQuery: true,
-          },
-        ]);
+        setSearchResults([]);
       }
-    } catch {
-      // Fallback
-      setSearchResults([
-        {
-          id: q,
-          title: q,
-          artist: "Search on YouTube",
-          thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
-          duration: "Full Video",
-          isSearchQuery: true,
-        },
-      ]);
+    } catch (err) {
+      console.warn("Search error:", err);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -200,19 +219,18 @@ export default function Spotify() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       performSearch(val);
-    }, 400);
+    }, 350);
   };
 
   // Embed URL for YouTube player
   const getEmbedUrl = () => {
-    if (!currentTrack) return "";
-    const autoplay = isPlaying ? "1" : "0";
-    if (currentTrack.isSearchQuery) {
-      return `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(
-        currentTrack.id
-      )}&autoplay=${autoplay}&enablejsapi=1`;
+    if (currentSong?.youtubeId) {
+      return `https://www.youtube-nocookie.com/embed/${currentSong.youtubeId}?autoplay=1&enablejsapi=1`;
     }
-    return `https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=${autoplay}&enablejsapi=1`;
+    const query = `${currentSong?.title || "Music"} ${currentSong?.artist || ""}`;
+    return `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(
+      query
+    )}&autoplay=1&enablejsapi=1`;
   };
 
   return (
@@ -570,14 +588,17 @@ export default function Spotify() {
                     gap: "20px",
                   }}
                 >
-                  {FEATURED_TRACKS.map((track) => (
-                    <TrackCard
-                      key={track.id}
-                      track={track}
-                      active={currentTrack.id === track.id && isPlaying}
-                      onPlay={() => playTrack(track)}
-                    />
-                  ))}
+                  {FEATURED_TRACKS.map((track) => {
+                    const isActive = currentSong?.title === track.title;
+                    return (
+                      <TrackCard
+                        key={track.id}
+                        track={track}
+                        active={isActive && isPlaying}
+                        onPlay={() => playTrack(track)}
+                      />
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -605,7 +626,7 @@ export default function Spotify() {
                     autoFocus
                     value={searchQuery}
                     onChange={(e) => handleQueryChange(e.target.value)}
-                    placeholder="Search song, artist, album, or paste YouTube link..."
+                    placeholder="Search song, artist, album (e.g. Popular weekend)..."
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
@@ -657,15 +678,18 @@ export default function Spotify() {
                       Top Results
                     </h2>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      {searchResults.map((track, i) => (
-                        <SearchResultRow
-                          key={`${track.id}-${i}`}
-                          track={track}
-                          index={i + 1}
-                          active={currentTrack.id === track.id && isPlaying}
-                          onPlay={() => playTrack(track)}
-                        />
-                      ))}
+                      {searchResults.map((track, i) => {
+                        const isActive = currentSong?.title === track.title;
+                        return (
+                          <SearchResultRow
+                            key={`${track.id}-${i}`}
+                            track={track}
+                            index={i + 1}
+                            active={isActive && isPlaying}
+                            onPlay={() => playTrack(track)}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -729,7 +753,7 @@ export default function Spotify() {
         </div>
       </div>
 
-      {/* ── Bottom Player Bar (Persistent & Instant) ── */}
+      {/* ── Bottom Player Bar (Syncs with Global System & Control Center) ── */}
       <div
         style={{
           height: "86px",
@@ -753,8 +777,8 @@ export default function Spotify() {
           }}
         >
           <img
-            src={currentTrack.thumbnail}
-            alt={currentTrack.title}
+            src={currentSong?.cover || "/music/thumbnail.png"}
+            alt={currentSong?.title || "Track"}
             style={{
               width: "56px",
               height: "56px",
@@ -779,7 +803,7 @@ export default function Spotify() {
                 textOverflow: "ellipsis",
               }}
             >
-              {currentTrack.title}
+              {currentSong?.title || "No track selected"}
             </div>
             <div
               style={{
@@ -790,7 +814,7 @@ export default function Spotify() {
                 textOverflow: "ellipsis",
               }}
             >
-              {currentTrack.artist}
+              {currentSong?.artist || "Spotify"}
             </div>
           </div>
           <button
@@ -808,7 +832,7 @@ export default function Spotify() {
           </button>
         </div>
 
-        {/* Center: Controls & Embed Audio */}
+        {/* Center: Controls & Scrubbable Interactive Timeline */}
         <div
           style={{
             display: "flex",
@@ -848,7 +872,7 @@ export default function Spotify() {
             </button>
             <button
               title={isPlaying ? "Pause" : "Play"}
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={() => controls.toggle()}
               style={{
                 width: "38px",
                 height: "38px",
@@ -895,7 +919,7 @@ export default function Spotify() {
             </button>
           </div>
 
-          {/* Progress Timeline Bar */}
+          {/* Interactive Scrubbable Timeline Bar */}
           <div
             style={{
               display: "flex",
@@ -904,45 +928,60 @@ export default function Spotify() {
               width: "100%",
             }}
           >
-            <span style={{ fontSize: "11px", color: "#B3B3B3", minWidth: "32px", textAlign: "right" }}>
-              {isPlaying ? "0:45" : "0:00"}
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#B3B3B3",
+                minWidth: "36px",
+                textAlign: "right",
+              }}
+            >
+              {fmtTime(displayTime)}
             </span>
+
+            {/* Draggable & Clickable Timeline Slider */}
             <div
               style={{
                 flex: 1,
-                height: "4px",
-                background: "#535353",
-                borderRadius: "2px",
                 position: "relative",
-                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                height: "14px",
               }}
             >
-              <div
+              <input
+                type="range"
+                min={0}
+                max={duration > 0 ? duration : 100}
+                step={0.5}
+                value={displayTime}
+                onChange={handleSeekChange}
+                onMouseUp={handleSeekCommit}
+                onTouchEnd={handleSeekCommit}
                 style={{
-                  width: isPlaying ? "35%" : "0%",
-                  height: "100%",
-                  background: "#1DB954",
+                  width: "100%",
+                  height: "4px",
+                  appearance: "none",
+                  WebkitAppearance: "none",
                   borderRadius: "2px",
-                  transition: "width 0.3s ease",
+                  background: `linear-gradient(to right, #1DB954 ${progressPercent}%, #535353 ${progressPercent}%)`,
+                  outline: "none",
+                  cursor: "pointer",
+                  margin: 0,
                 }}
               />
             </div>
-            <span style={{ fontSize: "11px", color: "#B3B3B3", minWidth: "32px" }}>
-              {currentTrack.duration || "3:30"}
+
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#B3B3B3",
+                minWidth: "36px",
+              }}
+            >
+              {fmtTime(duration)}
             </span>
           </div>
-
-          {/* Hidden YouTube Audio Engine when video is collapsed */}
-          {!videoExpanded && (
-            <div style={{ position: "absolute", width: "1px", height: "1px", opacity: 0.01, pointerEvents: "none" }}>
-              <iframe
-                title="Hidden Audio Player"
-                src={getEmbedUrl()}
-                style={{ width: "1px", height: "1px", border: "none" }}
-                allow="autoplay"
-              />
-            </div>
-          )}
         </div>
 
         {/* Right: Volume & Video Mode */}
@@ -971,17 +1010,17 @@ export default function Spotify() {
           </button>
           <span
             style={{ fontSize: "14px", cursor: "pointer" }}
-            onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+            onClick={() => controls.volume(audioState.volume > 0 ? 0 : 0.8)}
           >
-            {volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+            {audioState.volume === 0 ? "🔇" : audioState.volume < 0.5 ? "🔉" : "🔊"}
           </span>
           <input
             type="range"
             min={0}
             max={1}
             step={0.05}
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            value={audioState.volume}
+            onChange={(e) => controls.volume(parseFloat(e.target.value))}
             style={{ width: "80px", accentColor: "#1DB954", cursor: "pointer" }}
           />
         </div>

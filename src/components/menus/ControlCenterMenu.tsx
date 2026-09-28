@@ -6,6 +6,7 @@ import music from "~/configs/music";
 import { useWindowSize } from "~/hooks/useWindowSize";
 import { useStore } from "~/stores";
 import { useClickOutside } from "~/hooks";
+import { useAudioContext } from "~/context/AudioContext";
 
 interface SliderProps {
   icon: string;
@@ -114,6 +115,10 @@ export default function ControlCenterMenu({
   btnRef
 }: CCMProps) {
   const controlCenterRef = useRef<HTMLDivElement>(null);
+  const { audioState, controls: audioControls } = useAudioContext();
+  const currentSong = audioState.song || music;
+  const isPlayingAudio = audioState.playing;
+
   const { dark, wifi, brightness, bluetooth, airdrop, fullscreen, volume, focusMode } = useStore(
     (state) => ({
       dark: state.dark,
@@ -260,31 +265,25 @@ export default function ControlCenterMenu({
               {/* NOW PLAYING TILE */}
               <div style={{ width: "100%", height: "160px", background: "rgba(50,40,70,0.9)", borderRadius: "20px", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {playing ? (
-                    <img style={{ width: "40px", height: "40px", borderRadius: "6px", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", objectFit: "cover" }} src={music.cover} alt="cover" />
+                  {isPlayingAudio ? (
+                    <img style={{ width: "40px", height: "40px", borderRadius: "6px", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", objectFit: "cover" }} src={currentSong.cover} alt="cover" />
                   ) : (
                     <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: "20px", height: "20px", color: "white" }}>
                       <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                     </svg>
                   )}
                   <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                    {playing ? (
-                      <>
-                        <span style={{ fontSize: "14px", fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{music.title}</span>
-                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{music.artist}</span>
-                      </>
-                    ) : (
-                      <span style={{ fontSize: "15px", color: "rgba(255,255,255,0.8)" }}>Not Playing</span>
-                    )}
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.title}</span>
+                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.artist}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center" }}>
                   <motion.div whileTap={{ opacity: 0.5 }} style={{ cursor: "pointer" }}>
                     <svg viewBox="0 0 24 24" fill="white" style={{ width: "30px", height: "30px" }}><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
                   </motion.div>
-                  <motion.div whileTap={{ opacity: 0.5 }} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); toggleAudio(!playing); }}>
-                    {playing ? (
-                      <svg viewBox="0 0 24 24" fill="white" style={{ width: "38px", height: "38px" }}><path d="M8 5v14l11-7z"/></svg>
+                  <motion.div whileTap={{ opacity: 0.5 }} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); audioControls.toggle(); }}>
+                    {isPlayingAudio ? (
+                      <svg viewBox="0 0 24 24" fill="white" style={{ width: "38px", height: "38px" }}><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                     ) : (
                       <svg viewBox="0 0 24 24" fill="white" style={{ width: "38px", height: "38px" }}><path d="M8 5v14l11-7z"/></svg>
                     )}
@@ -454,18 +453,18 @@ export default function ControlCenterMenu({
             <div className="player cc-grid col-span-4 hstack space-x-2.5" p="y-2 l-2 r-4">
               <img
                 className="w-12 rounded-lg"
-                src={music.cover}
+                src={currentSong.cover}
                 alt="cover art"
-                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
+                style={{ width: "48px", height: "48px", objectFit: "cover", boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
               />
-              <div className="flex-1">
-                <div className="font-medium" style={{ fontSize: '12px' }}>{music.title}</div>
-                <div className="cc-text">{music.artist}</div>
+              <div className="flex-1 overflow-hidden">
+                <div className="font-medium truncate" style={{ fontSize: '12px' }}>{currentSong.title}</div>
+                <div className="cc-text truncate">{currentSong.artist}</div>
               </div>
-              {playing ? (
-                <span className="i-ph:pause-fill text-2xl play cursor-pointer" onClick={() => toggleAudio(false)} />
+              {isPlayingAudio ? (
+                <span className="i-ph:pause-fill text-2xl play cursor-pointer" onClick={() => audioControls.toggle(false)} />
               ) : (
-                <span className="i-ph:play-fill text-2xl pause cursor-pointer" onClick={() => toggleAudio(true)} />
+                <span className="i-ph:play-fill text-2xl pause cursor-pointer" onClick={() => audioControls.toggle(true)} />
               )}
             </div>
 

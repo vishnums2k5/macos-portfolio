@@ -1,25 +1,20 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import music from "~/configs/music";
+import { useAudio, type HTMLAudioState, type HTMLAudioControls } from "~/hooks/useAudio";
+
 interface AudioContextType {
   audio: HTMLAudioElement;
-  audioState: any;
-  controls: {
-    play: () => Promise<void> | void;
-    pause: () => Promise<void> | void;
-    toggle: (play?: boolean) => Promise<void> | void;
-    volume: (value: number) => void;
-  };
+  audioState: HTMLAudioState;
+  controls: HTMLAudioControls;
   audioRef: React.RefObject<HTMLAudioElement>;
 }
 
-// Create the context with an initial undefined value
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
-// Create a provider component
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [audio, audioState, controls, audioRef] = useAudio({
-    src: music.audio, 
-    autoReplay: true
+    src: music.audio.startsWith("/") ? music.audio : `/${music.audio}`,
+    autoReplay: true,
   });
 
   return (
@@ -29,7 +24,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-// Custom hook to use the audio context
 export const useAudioContext = () => {
   const context = useContext(AudioContext);
   if (!context) {

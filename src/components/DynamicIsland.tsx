@@ -198,15 +198,15 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-3">
                     <img
-                      src={music.cover}
+                      src={audioState.song?.cover || music.cover}
                       alt="album"
                       style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: "white", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {music.title}
+                        {audioState.song?.title || music.title}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{music.artist}</div>
+                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{audioState.song?.artist || music.artist}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
