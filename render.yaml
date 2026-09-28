@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: spotify-backend
-    env: docker
-    dockerfilePath: ./server/Dockerfile
-    dockerContext: ./server
-    plan: free
-    region: oregon
-    healthCheckPath: /api/health

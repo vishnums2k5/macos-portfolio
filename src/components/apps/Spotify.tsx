@@ -1,50 +1,68 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-// ── Dynamic API Resolution ──────────────────────────────────────────────────
-const DEFAULT_API =
-  import.meta.env.VITE_SPOTIFY_API_URL ||
-  (typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:3001/api"
-    : "https://spotify-backend-vvyq.onrender.com/api");
-
-function getStoredApi(): string {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("spotify_backend_url");
-    if (saved) return saved.replace(/\/+$/, "").replace(/\/api$/, "") + "/api";
-  }
-  return DEFAULT_API;
-}
-const accent = "#1DB954";
-const accentDark = "#158f3e";
-const bg = "#121212";
-const sidebar = "#000000";
-const card = "#181818";
-const cardHover = "#282828";
-const text = "#FFFFFF";
-const muted = "#B3B3B3";
-const mutedDark = "#535353";
-
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Track {
-  id: string;
+  id: string; // YouTube Video ID or search query
   title: string;
-  uploader: string;
+  artist: string;
   thumbnail: string;
-  duration: number;
-  durationFormatted: string;
+  duration?: string;
+  badge?: string;
+  isSearchQuery?: boolean;
 }
 
-interface PlayerState {
-  track: Track | null;
-  playing: boolean;
-  progress: number; // 0..1
-  elapsed: number;  // seconds
-  volume: number;   // 0..1
-  loading: boolean;
-  error: string | null;
-}
+// ── Curated Tracks (Vishnu's Favorites with direct high-speed YouTube IDs) ─────
+const FEATURED_TRACKS: Track[] = [
+  {
+    id: "wEWF2xh5E8s",
+    title: "Sadness and Sorrow (Full Version)",
+    artist: "Naruto Soundtrack",
+    badge: "VISHNU'S FAVORITE",
+    thumbnail: "https://img.youtube.com/vi/wEWF2xh5E8s/hqdefault.jpg",
+    duration: "7:19",
+  },
+  {
+    id: "jgpJVI3tDbY",
+    title: "Opening 1 – Hero's Come Back!",
+    artist: "Naruto Shippuden",
+    badge: "VISHNU'S FAVORITE",
+    thumbnail: "https://img.youtube.com/vi/jgpJVI3tDbY/hqdefault.jpg",
+    duration: "3:45",
+  },
+  {
+    id: "jfKfPfyJRdk",
+    title: "Lofi Hip Hop Radio – Beats to Relax/Study to",
+    artist: "Lofi Girl",
+    badge: "CODING ESSENTIAL",
+    thumbnail: "https://img.youtube.com/vi/jfKfPfyJRdk/hqdefault.jpg",
+    duration: "LIVE",
+  },
+  {
+    id: "UDVtMYqUAyw",
+    title: "Interstellar Main Theme (Piano & Orchestra)",
+    artist: "Hans Zimmer",
+    badge: "MASTERPIECE",
+    thumbnail: "https://img.youtube.com/vi/UDVtMYqUAyw/hqdefault.jpg",
+    duration: "4:08",
+  },
+  {
+    id: "34Na4j8AVgA",
+    title: "Starboy (Official Music Video)",
+    artist: "The Weeknd ft. Daft Punk",
+    badge: "POPULAR",
+    thumbnail: "https://img.youtube.com/vi/34Na4j8AVgA/hqdefault.jpg",
+    duration: "3:50",
+  },
+  {
+    id: "sFlrn1fW0i8",
+    title: "GigaChad Theme (Phonk Remix)",
+    artist: "g3ox_em",
+    badge: "DEV MODE",
+    thumbnail: "https://img.youtube.com/vi/sFlrn1fW0i8/hqdefault.jpg",
+    duration: "2:24",
+  },
+];
 
-// ── Playlists / featured (sidebar data) ───────────────────────────────────────
 const PLAYLISTS = [
   { id: "p1", name: "Liked Songs", color: "#6c47b7", initial: "♥", desc: "Playlist • 42 songs" },
   { id: "p2", name: "My Playlist #6", color: "#3a3a5c", initial: "#6", desc: "Playlist • Vishnu" },
@@ -55,229 +73,291 @@ const PLAYLISTS = [
   { id: "p7", name: "Night Coding", color: "#7a1a1a", initial: "NC", desc: "Playlist • Vishnu" },
 ];
 
-const FEATURED: Track[] = [
-  { id: "wEWF2xh5E8s", title: "Sadness and Sorrow (Full Version)", uploader: "Naruto Soundtrack", thumbnail: "https://img.youtube.com/vi/wEWF2xh5E8s/hqdefault.jpg", duration: 439, durationFormatted: "7:19" },
-  { id: "jgpJVI3tDbY", title: "Opening 1 – Hero's Come Back!", uploader: "Naruto Shippuden", thumbnail: "https://img.youtube.com/vi/jgpJVI3tDbY/hqdefault.jpg", duration: 225, durationFormatted: "3:45" },
-  { id: "Fj6-3pJi8bM", title: "Lofi Chill – Study Beats", uploader: "Lofi Girl", thumbnail: "https://img.youtube.com/vi/Fj6-3pJi8bM/hqdefault.jpg", duration: 3600, durationFormatted: "60:00" },
-  { id: "lFcSrYw2ARY", title: "Interstellar Main Theme", uploader: "Hans Zimmer", thumbnail: "https://img.youtube.com/vi/lFcSrYw2ARY/hqdefault.jpg", duration: 395, durationFormatted: "6:35" },
+const GENRES = [
+  { name: "Lofi Chill", query: "lofi hip hop radio beats to relax", color: "#E8115B" },
+  { name: "Naruto OST", query: "naruto soundtrack official", color: "#BA5D07" },
+  { name: "Hans Zimmer", query: "hans zimmer best soundtracks", color: "#1E3264" },
+  { name: "Coding Beats", query: "synthwave coding focus beats", color: "#8D67AB" },
+  { name: "Anime Hits", query: "popular anime opening songs", color: "#1DB954" },
+  { name: "The Weeknd", query: "the weeknd popular songs", color: "#148A08" },
+  { name: "Rock Classics", query: "greatest rock classics", color: "#E91429" },
+  { name: "Chillstep", query: "chillstep relaxing music", color: "#509BF5" },
 ];
 
-// ── Helper ─────────────────────────────────────────────────────────────────────
-function fmtTime(s: number) {
-  if (!s || isNaN(s)) return "0:00";
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
+// Helper to extract YouTube ID from any link or text
+function extractYouTubeId(input: string): string | null {
+  const match = input.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
+  );
+  if (match) return match[1];
+  if (/^[\w-]{11}$/.test(input.trim())) return input.trim();
+  return null;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 export default function Spotify() {
   const [view, setView] = useState<"home" | "search">("home");
+  const [currentTrack, setCurrentTrack] = useState<Track>(FEATURED_TRACKS[0]);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [videoExpanded, setVideoExpanded] = useState(false);
+  const [volume, setVolume] = useState(0.9);
+  const [liked, setLiked] = useState(true);
 
-  const [player, setPlayer] = useState<PlayerState>({
-    track: null,
-    playing: false,
-    progress: 0,
-    elapsed: 0,
-    volume: 0.8,
-    loading: false,
-    error: null,
-  });
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Audio events ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const audio = new Audio();
-    audio.volume = player.volume;
-    audioRef.current = audio;
-
-    const onTimeUpdate = () => {
-      if (!audio.duration) return;
-      setPlayer((p) => ({
-        ...p,
-        elapsed: audio.currentTime,
-        progress: audio.currentTime / audio.duration,
-      }));
-    };
-    const onEnded = () => setPlayer((p) => ({ ...p, playing: false, progress: 0, elapsed: 0 }));
-    const onCanPlay = () => setPlayer((p) => ({ ...p, loading: false }));
-    const onError = () => setPlayer((p) => ({ ...p, loading: false, error: "Playback error — try another track" }));
-
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("canplay", onCanPlay);
-    audio.addEventListener("error", onError);
-
-    return () => {
-      audio.pause();
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("canplay", onCanPlay);
-      audio.removeEventListener("error", onError);
-    };
+  // Play a track directly
+  const playTrack = useCallback((track: Track) => {
+    setCurrentTrack(track);
+    setIsPlaying(true);
   }, []);
 
-  // ── Play track ────────────────────────────────────────────────────────────────
-  const playTrack = useCallback(async (track: Track) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    audio.pause();
-    setPlayer((p) => ({ ...p, track, playing: false, loading: true, error: null, progress: 0, elapsed: 0 }));
-
-    try {
-      const baseApi = getStoredApi();
-      audio.src = `${baseApi}/proxy?id=${track.id}`;
-      audio.volume = player.volume;
-      await audio.play();
-      setPlayer((p) => ({ ...p, playing: true, loading: false }));
-    } catch {
-      try {
-        const baseApi = getStoredApi();
-        const res = await fetch(`${baseApi}/stream?id=${track.id}`);
-        const data = await res.json();
-        if (data.url) {
-          audio.src = data.url;
-          audio.volume = player.volume;
-          await audio.play();
-          setPlayer((p) => ({ ...p, playing: true, loading: false }));
-          return;
-        }
-        throw new Error("No stream URL");
-      } catch (err: any) {
-        setPlayer((p) => ({
-          ...p,
-          loading: false,
-          error: "Playback error: could not stream track.",
-        }));
-      }
-    }
-  }, [player.volume]);
-
-  // ── Play/Pause ────────────────────────────────────────────────────────────────
-  const togglePlay = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || !player.track) return;
-    if (player.playing) {
-      audio.pause();
-      setPlayer((p) => ({ ...p, playing: false }));
-    } else {
-      audio.play().then(() => setPlayer((p) => ({ ...p, playing: true })));
-    }
-  }, [player.playing, player.track]);
-
-  // ── Seek ──────────────────────────────────────────────────────────────────────
-  const seek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const bar = progressRef.current;
-    const audio = audioRef.current;
-    if (!bar || !audio || !audio.duration) return;
-    const rect = bar.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * audio.duration;
-    setPlayer((p) => ({ ...p, progress: ratio, elapsed: ratio * audio.duration }));
-  }, []);
-
-  // ── Volume ────────────────────────────────────────────────────────────────────
-  const setVolume = useCallback((v: number) => {
-    if (audioRef.current) audioRef.current.volume = v;
-    setPlayer((p) => ({ ...p, volume: v }));
-  }, []);
-
-  // ── Search (debounced) ────────────────────────────────────────────────────────
-  const handleSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setSearchResults([]); return; }
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const baseApi = getStoredApi();
-      const res = await fetch(`${baseApi}/search?q=${encodeURIComponent(q)}&limit=12`);
-      if (!res.ok) throw new Error("Search failed");
-      const data = await res.json();
-      setSearchResults(data.results || []);
-    } catch {
-      setSearchError("Search failed — check backend URL or ensure Render service is awake");
+  // Search logic: uses iTunes Search API (fast, worldwide, free, 0 backend) + YouTube URL parsing
+  const performSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (!q) {
       setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    // Check if user entered a direct YouTube video URL
+    const ytId = extractYouTubeId(q);
+    if (ytId) {
+      setSearchResults([
+        {
+          id: ytId,
+          title: `YouTube Video (${ytId})`,
+          artist: "Direct YouTube Link",
+          thumbnail: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
+          duration: "Full Video",
+        },
+      ]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=15`
+      );
+      const data = await res.json();
+
+      if (data.results && data.results.length > 0) {
+        const formatted: Track[] = data.results.map((r: any) => {
+          const highResArt = r.artworkUrl100
+            ? r.artworkUrl100.replace("100x100bb.jpg", "600x600bb.jpg")
+            : "https://picsum.photos/300/300";
+          const durSec = Math.floor((r.trackTimeMillis || 0) / 1000);
+          const durFmt = `${Math.floor(durSec / 60)}:${(durSec % 60)
+            .toString()
+            .padStart(2, "0")}`;
+
+          return {
+            id: `${r.trackName} ${r.artistName}`,
+            title: r.trackName,
+            artist: r.artistName,
+            thumbnail: highResArt,
+            duration: durFmt,
+            isSearchQuery: true,
+          };
+        });
+        setSearchResults(formatted);
+      } else {
+        // Fallback search directly as a YouTube query
+        setSearchResults([
+          {
+            id: q,
+            title: q,
+            artist: "Search on YouTube",
+            thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
+            duration: "Full Video",
+            isSearchQuery: true,
+          },
+        ]);
+      }
+    } catch {
+      // Fallback
+      setSearchResults([
+        {
+          id: q,
+          title: q,
+          artist: "Search on YouTube",
+          thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80",
+          duration: "Full Video",
+          isSearchQuery: true,
+        },
+      ]);
     } finally {
-      setSearching(false);
+      setIsSearching(false);
     }
   }, []);
 
-  const onQueryChange = (q: string) => {
-    setSearchQuery(q);
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => handleSearch(q), 500);
+  const handleQueryChange = (val: string) => {
+    setSearchQuery(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      performSearch(val);
+    }, 400);
   };
 
-  // ── Duration text ─────────────────────────────────────────────────────────────
-  const totalDuration = player.track?.duration || 0;
+  // Embed URL for YouTube player
+  const getEmbedUrl = () => {
+    if (!currentTrack) return "";
+    const autoplay = isPlaying ? "1" : "0";
+    if (currentTrack.isSearchQuery) {
+      return `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(
+        currentTrack.id
+      )}&autoplay=${autoplay}&enablejsapi=1`;
+    }
+    return `https://www.youtube-nocookie.com/embed/${currentTrack.id}?autoplay=${autoplay}&enablejsapi=1`;
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", fontFamily: "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif", backgroundColor: bg, color: text, overflow: "hidden", borderRadius: "inherit" }}>
-      {/* ── Main body (sidebar + content) ──────────────────────────────────── */}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100%",
+        fontFamily: "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
+        backgroundColor: "#121212",
+        color: "#FFFFFF",
+        overflow: "hidden",
+        borderRadius: "inherit",
+      }}
+    >
+      {/* ── Top Body: Left Sidebar + Main Content ── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-
-        {/* ── Left Sidebar ─────────────────────────────────────────────────── */}
-        <div style={{ width: "280px", minWidth: "220px", backgroundColor: sidebar, display: "flex", flexDirection: "column", borderRight: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, overflow: "hidden" }}>
-
-          {/* Nav */}
+        {/* Left Sidebar */}
+        <div
+          style={{
+            width: "280px",
+            minWidth: "220px",
+            backgroundColor: "#000000",
+            display: "flex",
+            flexDirection: "column",
+            borderRight: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+          }}
+        >
+          {/* Navigation */}
           <div style={{ padding: "16px 12px 8px" }}>
             <div
               onClick={() => setView("home")}
-              style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 12px", borderRadius: "6px", cursor: "pointer", color: view === "home" ? text : muted, fontWeight: 700, fontSize: "15px" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "10px 14px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: view === "home" ? "#FFFFFF" : "#B3B3B3",
+                fontWeight: 700,
+                fontSize: "15px",
+                backgroundColor: view === "home" ? "rgba(255,255,255,0.08)" : "transparent",
+                transition: "all 0.15s ease",
+              }}
             >
-              <span style={{ fontSize: "20px" }}>🏠</span> Home
+              <span style={{ fontSize: "18px" }}>🏠</span> Home
             </div>
             <div
-              onClick={() => { setView("search"); }}
-              style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 12px", borderRadius: "6px", cursor: "pointer", color: view === "search" ? text : muted, fontWeight: 700, fontSize: "15px" }}
+              onClick={() => setView("search")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "10px 14px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: view === "search" ? "#FFFFFF" : "#B3B3B3",
+                fontWeight: 700,
+                fontSize: "15px",
+                backgroundColor: view === "search" ? "rgba(255,255,255,0.08)" : "transparent",
+                transition: "all 0.15s ease",
+              }}
             >
-              <span style={{ fontSize: "20px" }}>🔍</span> Search
+              <span style={{ fontSize: "18px" }}>🔍</span> Search
             </div>
           </div>
 
           {/* Your Library */}
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", padding: "0 8px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 8px 12px" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "10px", color: muted, fontWeight: 700, fontSize: "13px" }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              padding: "0 8px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 10px 8px",
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  color: "#B3B3B3",
+                  fontWeight: 700,
+                  fontSize: "13px",
+                }}
+              >
                 <span>📚</span> Your Library
               </span>
-              <span style={{ fontSize: "22px", color: muted, cursor: "pointer" }}>+</span>
+              <span style={{ fontSize: "20px", color: "#B3B3B3", cursor: "pointer" }}>+</span>
             </div>
 
-            {/* Library search */}
-            <div style={{ padding: "0 4px 10px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", padding: "6px 10px" }}>
-                <span style={{ fontSize: "13px", opacity: 0.6 }}>🔍</span>
-                <input
-                  placeholder="Search in Your Library"
-                  style={{ background: "none", border: "none", outline: "none", color: text, fontSize: "12px", width: "100%" }}
-                  readOnly
-                />
-              </div>
-            </div>
-
-            {/* Playlist list */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
+            {/* Playlists List */}
+            <div style={{ flex: 1, overflowY: "auto", paddingBottom: "10px" }}>
               {PLAYLISTS.map((pl) => (
                 <div
                   key={pl.id}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", borderRadius: "6px", cursor: "pointer", transition: "background 0.15s" }}
+                  onClick={() => {
+                    setView("home");
+                    playTrack(FEATURED_TRACKS[0]);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "8px 10px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "background 0.15s",
+                  }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <div style={{ width: "42px", height: "42px", borderRadius: "6px", background: pl.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: "42px",
+                      height: "42px",
+                      borderRadius: "6px",
+                      background: pl.color,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
                     {pl.initial}
                   </div>
                   <div>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: text }}>{pl.name}</div>
-                    <div style={{ fontSize: "11px", color: muted }}>{pl.desc}</div>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>
+                      {pl.name}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#B3B3B3" }}>{pl.desc}</div>
                   </div>
                 </div>
               ))}
@@ -285,132 +365,363 @@ export default function Spotify() {
           </div>
         </div>
 
-        {/* ── Main Content ──────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "linear-gradient(180deg, #1a1a2e 0%, #121212 300px)" }}>
-
-          {/* Top bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", flexShrink: 0 }}>
+        {/* ── Main Content Area ── */}
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            background: "linear-gradient(180deg, #1e1e38 0%, #121212 320px)",
+          }}
+        >
+          {/* Header Bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "16px 24px",
+              flexShrink: 0,
+            }}
+          >
+            {/* Back / Forward */}
             <div style={{ display: "flex", gap: "8px" }}>
-              {["◀", "▶"].map((a) => (
-                <button key={a} style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "none", color: text, cursor: "pointer", fontSize: "13px" }}>{a}</button>
-              ))}
+              <button
+                onClick={() => setView("home")}
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.6)",
+                  border: "none",
+                  color: "#FFF",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                ◀
+              </button>
+              <button
+                onClick={() => setView("search")}
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.6)",
+                  border: "none",
+                  color: "#FFF",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                ▶
+              </button>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "20px", padding: "4px 12px", fontSize: "12px", fontWeight: 700 }}>🔔 Premium Active</div>
-              <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700 }}>V</div>
-              <span style={{ fontSize: "13px", fontWeight: 700 }}>Vishnu M S</span>
+
+            {/* Profile & Video Mode Toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <button
+                onClick={() => setVideoExpanded(!videoExpanded)}
+                style={{
+                  background: videoExpanded ? "#1DB954" : "rgba(255,255,255,0.12)",
+                  color: videoExpanded ? "#000" : "#FFF",
+                  border: "none",
+                  borderRadius: "20px",
+                  padding: "6px 14px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span>📺</span> {videoExpanded ? "Hide Video" : "Video Visualizer"}
+              </button>
+
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  borderRadius: "20px",
+                  padding: "6px 14px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                }}
+              >
+                🔔 Premium Active
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  background: "rgba(0,0,0,0.4)",
+                  padding: "4px 10px 4px 4px",
+                  borderRadius: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: "#1DB954",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    color: "#000",
+                  }}
+                >
+                  V
+                </div>
+                <span style={{ fontSize: "13px", fontWeight: 700 }}>Vishnu M S</span>
+              </div>
             </div>
           </div>
 
-          {/* ─ Scrollable area ─ */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 20px" }}>
+          {/* ── Scrollable View Container ── */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px" }}>
+            {/* If Video Visualizer is expanded, show YouTube player right in the main window */}
+            {videoExpanded && (
+              <div
+                style={{
+                  marginBottom: "24px",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
+                  background: "#000",
+                  aspectRatio: "16 / 9",
+                  maxHeight: "360px",
+                  width: "100%",
+                }}
+              >
+                <iframe
+                  title="YouTube Player"
+                  src={getEmbedUrl()}
+                  style={{ width: "100%", height: "100%", border: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            )}
 
+            {/* ── HOME VIEW ── */}
             {view === "home" && (
               <>
-                <h1 style={{ fontSize: "28px", fontWeight: 800, margin: "0 0 24px" }}>Welcome Back</h1>
+                <h1 style={{ fontSize: "28px", fontWeight: 800, margin: "0 0 20px" }}>
+                  Welcome Back
+                </h1>
 
-                {/* Favorites pill */}
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", padding: "10px 16px", marginBottom: "32px", cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}>
-                  <div style={{ width: "48px", height: "48px", background: "linear-gradient(135deg, #6c47b7, #1DB954)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" }}>❤️</div>
-                  <span style={{ fontSize: "15px", fontWeight: 700 }}>Favorites</span>
+                {/* Favorites Pill */}
+                <div
+                  onClick={() => playTrack(FEATURED_TRACKS[0])}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    background: "rgba(255,255,255,0.08)",
+                    borderRadius: "6px",
+                    padding: "10px 16px",
+                    marginBottom: "32px",
+                    cursor: "pointer",
+                    transition: "background 0.2s",
+                    maxWidth: "320px",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(255,255,255,0.14)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "rgba(255,255,255,0.08)")
+                  }
+                >
+                  <div
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      background: "linear-gradient(135deg, #6c47b7, #1DB954)",
+                      borderRadius: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "22px",
+                    }}
+                  >
+                    ❤️
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "15px", fontWeight: 700 }}>Favorites</div>
+                    <div style={{ fontSize: "11px", color: "#B3B3B3" }}>42 Songs</div>
+                  </div>
                 </div>
 
                 {/* Featured / Vishnu's Favorites */}
-                <h2 style={{ fontSize: "20px", fontWeight: 700, margin: "0 0 18px" }}>Vishnu's Favorites</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "18px" }}>
-                  {FEATURED.map((track) => (
-                    <TrackCard key={track.id} track={track} playing={player.track?.id === track.id && player.playing} onPlay={() => playTrack(track)} />
+                <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "0 0 16px" }}>
+                  Vishnu's Favorites
+                </h2>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "20px",
+                  }}
+                >
+                  {FEATURED_TRACKS.map((track) => (
+                    <TrackCard
+                      key={track.id}
+                      track={track}
+                      active={currentTrack.id === track.id && isPlaying}
+                      onPlay={() => playTrack(track)}
+                    />
                   ))}
                 </div>
               </>
             )}
 
+            {/* ── SEARCH VIEW ── */}
             {view === "search" && (
               <>
-                <h1 style={{ fontSize: "28px", fontWeight: 800, margin: "0 0 18px" }}>Search</h1>
+                <h1 style={{ fontSize: "28px", fontWeight: 800, margin: "0 0 16px" }}>Search</h1>
 
-                {/* Search input */}
-                <div style={{ position: "relative", marginBottom: "28px" }}>
-                  <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", fontSize: "16px", pointerEvents: "none" }}>🔍</span>
+                {/* Search Bar */}
+                <div style={{ position: "relative", marginBottom: "24px", maxWidth: "600px" }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: "16px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "16px",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    🔍
+                  </span>
                   <input
                     autoFocus
                     value={searchQuery}
-                    onChange={(e) => onQueryChange(e.target.value)}
-                    placeholder="What do you want to listen to?"
+                    onChange={(e) => handleQueryChange(e.target.value)}
+                    placeholder="Search song, artist, album, or paste YouTube link..."
                     style={{
                       width: "100%",
                       boxSizing: "border-box",
-                      padding: "13px 16px 13px 44px",
+                      padding: "14px 18px 14px 46px",
                       borderRadius: "30px",
                       background: "#2a2a2a",
                       border: "none",
                       outline: "none",
-                      color: text,
-                      fontSize: "15px",
+                      color: "#FFFFFF",
+                      fontSize: "14px",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
                     }}
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                      style={{
+                        position: "absolute",
+                        right: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "#B3B3B3",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
 
-                {/* Loading */}
-                {searching && (
-                  <div style={{ textAlign: "center", padding: "32px", color: muted }}>
-                    <div style={{ fontSize: "32px", marginBottom: "12px" }}>⏳</div>
-                    Searching YouTube...
+                {/* Search Loading Indicator */}
+                {isSearching && (
+                  <div style={{ padding: "30px", textAlign: "center", color: "#B3B3B3" }}>
+                    <div style={{ fontSize: "28px", marginBottom: "8px" }}>⏳</div>
+                    Searching music library...
                   </div>
                 )}
 
-                {/* Error */}
-                {searchError && (
-                  <div style={{ background: "rgba(255,0,0,0.1)", borderRadius: "8px", padding: "16px", color: "#ff6b6b", fontSize: "13px", marginBottom: "16px" }}>
-                    ⚠️ {searchError}
-                  </div>
-                )}
-
-                {/* Results */}
-                {!searching && searchResults.length > 0 && (
-                  <>
-                    <h2 style={{ fontSize: "18px", fontWeight: 700, margin: "0 0 16px" }}>Results</h2>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                {/* Search Results */}
+                {!isSearching && searchResults.length > 0 && (
+                  <div>
+                    <h2 style={{ fontSize: "18px", fontWeight: 700, margin: "0 0 16px" }}>
+                      Top Results
+                    </h2>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       {searchResults.map((track, i) => (
                         <SearchResultRow
-                          key={track.id}
+                          key={`${track.id}-${i}`}
                           track={track}
                           index={i + 1}
-                          playing={player.track?.id === track.id && player.playing}
+                          active={currentTrack.id === track.id && isPlaying}
                           onPlay={() => playTrack(track)}
                         />
                       ))}
                     </div>
-                  </>
-                )}
-
-                {/* Empty state */}
-                {!searching && !searchResults.length && searchQuery && !searchError && (
-                  <div style={{ textAlign: "center", padding: "48px", color: muted }}>
-                    <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎵</div>
-                    <div style={{ fontSize: "16px", fontWeight: 700, color: text, marginBottom: "8px" }}>No results for "{searchQuery}"</div>
-                    <div style={{ fontSize: "13px" }}>Try different keywords or check your spelling.</div>
                   </div>
                 )}
 
-                {/* Initial search prompt */}
-                {!searching && !searchQuery && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px" }}>
-                    {["Lofi", "Naruto OST", "Hans Zimmer", "Coding Music", "Anime", "Chill Beats", "Jazz", "EDM"].map((genre, i) => {
-                      const colors = ["#E8115B","#1E3264","#8D67AB","#1DB954","#BA5D07","#148A08","#E91429","#509BF5"];
-                      return (
+                {/* Empty State / Quick Genres */}
+                {!isSearching && searchResults.length === 0 && (
+                  <>
+                    <h2
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        margin: "0 0 14px",
+                        color: "#B3B3B3",
+                      }}
+                    >
+                      Browse All Categories
+                    </h2>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gap: "16px",
+                      }}
+                    >
+                      {GENRES.map((g) => (
                         <div
-                          key={genre}
-                          onClick={() => { onQueryChange(genre); }}
-                          style={{ background: colors[i], borderRadius: "8px", padding: "16px", cursor: "pointer", fontWeight: 700, fontSize: "14px", minHeight: "80px", display: "flex", alignItems: "flex-end" }}
+                          key={g.name}
+                          onClick={() => {
+                            setSearchQuery(g.name);
+                            performSearch(g.query);
+                          }}
+                          style={{
+                            background: g.color,
+                            borderRadius: "8px",
+                            padding: "16px",
+                            height: "90px",
+                            cursor: "pointer",
+                            fontWeight: 700,
+                            fontSize: "16px",
+                            display: "flex",
+                            alignItems: "flex-end",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                            transition: "transform 0.15s ease",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.transform = "scale(1.03)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.transform = "scale(1)")
+                          }
                         >
-                          {genre}
+                          {g.name}
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </>
             )}
@@ -418,67 +729,396 @@ export default function Spotify() {
         </div>
       </div>
 
-      {/* ── Player Bar ─────────────────────────────────────────────────────────── */}
-      <PlayerBar
-        player={player}
-        totalDuration={totalDuration}
-        onTogglePlay={togglePlay}
-        onSeek={seek}
-        onVolume={setVolume}
-        progressRef={progressRef}
-      />
+      {/* ── Bottom Player Bar (Persistent & Instant) ── */}
+      <div
+        style={{
+          height: "86px",
+          background: "#181818",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          alignItems: "center",
+          padding: "0 20px",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        {/* Left: Track Details */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            width: "280px",
+            flexShrink: 0,
+          }}
+        >
+          <img
+            src={currentTrack.thumbnail}
+            alt={currentTrack.title}
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "6px",
+              objectFit: "cover",
+              flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&q=80";
+            }}
+          />
+          <div style={{ overflow: "hidden" }}>
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#FFF",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {currentTrack.title}
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#B3B3B3",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {currentTrack.artist}
+            </div>
+          </div>
+          <button
+            onClick={() => setLiked(!liked)}
+            style={{
+              background: "none",
+              border: "none",
+              color: liked ? "#1DB954" : "#535353",
+              cursor: "pointer",
+              fontSize: "16px",
+              marginLeft: "4px",
+            }}
+          >
+            ♥
+          </button>
+        </div>
+
+        {/* Center: Controls & Embed Audio */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "6px",
+            flex: 1,
+            maxWidth: "540px",
+          }}
+        >
+          {/* Action Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+            <button
+              title="Shuffle"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+            >
+              ⇄
+            </button>
+            <button
+              title="Previous"
+              onClick={() => playTrack(FEATURED_TRACKS[0])}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+            >
+              ⏮
+            </button>
+            <button
+              title={isPlaying ? "Pause" : "Play"}
+              onClick={() => setIsPlaying(!isPlaying)}
+              style={{
+                width: "38px",
+                height: "38px",
+                borderRadius: "50%",
+                background: "#FFFFFF",
+                border: "none",
+                color: "#000000",
+                fontSize: "15px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                transition: "transform 0.1s ease",
+              }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              {isPlaying ? "⏸" : "▶"}
+            </button>
+            <button
+              title="Next"
+              onClick={() => playTrack(FEATURED_TRACKS[1])}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+            >
+              ⏭
+            </button>
+            <button
+              title="Repeat"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#B3B3B3",
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+            >
+              ↺
+            </button>
+          </div>
+
+          {/* Progress Timeline Bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+            }}
+          >
+            <span style={{ fontSize: "11px", color: "#B3B3B3", minWidth: "32px", textAlign: "right" }}>
+              {isPlaying ? "0:45" : "0:00"}
+            </span>
+            <div
+              style={{
+                flex: 1,
+                height: "4px",
+                background: "#535353",
+                borderRadius: "2px",
+                position: "relative",
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  width: isPlaying ? "35%" : "0%",
+                  height: "100%",
+                  background: "#1DB954",
+                  borderRadius: "2px",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: "11px", color: "#B3B3B3", minWidth: "32px" }}>
+              {currentTrack.duration || "3:30"}
+            </span>
+          </div>
+
+          {/* Hidden YouTube Audio Engine when video is collapsed */}
+          {!videoExpanded && (
+            <div style={{ position: "absolute", width: "1px", height: "1px", opacity: 0.01, pointerEvents: "none" }}>
+              <iframe
+                title="Hidden Audio Player"
+                src={getEmbedUrl()}
+                style={{ width: "1px", height: "1px", border: "none" }}
+                allow="autoplay"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Right: Volume & Video Mode */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            width: "200px",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            title={videoExpanded ? "Collapse video" : "Expand video"}
+            onClick={() => setVideoExpanded(!videoExpanded)}
+            style={{
+              background: "none",
+              border: "none",
+              color: videoExpanded ? "#1DB954" : "#B3B3B3",
+              cursor: "pointer",
+              fontSize: "16px",
+            }}
+          >
+            📺
+          </button>
+          <span
+            style={{ fontSize: "14px", cursor: "pointer" }}
+            onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+          >
+            {volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            style={{ width: "80px", accentColor: "#1DB954", cursor: "pointer" }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Track Card (Home grid) ────────────────────────────────────────────────────
-function TrackCard({ track, playing, onPlay }: { track: Track; playing: boolean; onPlay: () => void }) {
+// ── Track Card (Home Grid) ──────────────────────────────────────────────────
+function TrackCard({
+  track,
+  active,
+  onPlay,
+}: {
+  track: Track;
+  active: boolean;
+  onPlay: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
+
   return (
     <div
       onClick={onPlay}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: hovered ? cardHover : card,
+        background: hovered ? "#282828" : "#181818",
         borderRadius: "8px",
         padding: "14px",
         cursor: "pointer",
-        transition: "background 0.2s",
         position: "relative",
+        transition: "background 0.2s ease",
       }}
     >
       <div style={{ position: "relative", marginBottom: "12px" }}>
         <img
           src={track.thumbnail}
           alt={track.title}
-          style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "6px", display: "block" }}
-          onError={(e) => { (e.target as HTMLImageElement).src = "https://img.youtube.com/vi/default/hqdefault.jpg"; }}
+          style={{
+            width: "100%",
+            aspectRatio: "1",
+            objectFit: "cover",
+            borderRadius: "6px",
+            display: "block",
+          }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80";
+          }}
         />
-        {hovered && (
-          <div style={{ position: "absolute", bottom: "8px", right: "8px", width: "42px", height: "42px", borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", transition: "opacity 0.2s" }}>
-            {playing ? "⏸" : "▶"}
+
+        {/* Badge */}
+        {track.badge && (
+          <div
+            style={{
+              position: "absolute",
+              top: "8px",
+              left: "8px",
+              background: "#1DB954",
+              color: "#000",
+              borderRadius: "3px",
+              padding: "2px 6px",
+              fontSize: "9px",
+              fontWeight: 800,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {track.badge}
           </div>
         )}
-        {playing && !hovered && (
-          <div style={{ position: "absolute", bottom: "8px", right: "8px", width: "42px", height: "42px", borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
-            ▶
+
+        {/* Play Button Overlay */}
+        {(hovered || active) && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "8px",
+              width: "42px",
+              height: "42px",
+              borderRadius: "50%",
+              background: "#1DB954",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "16px",
+              color: "#000",
+              boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+            }}
+          >
+            {active ? "⏸" : "▶"}
           </div>
         )}
       </div>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
-      <div style={{ fontSize: "11px", color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>By {track.uploader}</div>
-      {/* "VISHNU'S FAVORITE" badge */}
-      <div style={{ position: "absolute", top: "20px", left: "20px", background: accent, borderRadius: "2px", padding: "2px 6px", fontSize: "9px", fontWeight: 800, letterSpacing: "0.5px" }}>
-        VISHNU'S FAVORITE
+
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: active ? "#1DB954" : "#FFFFFF",
+          marginBottom: "4px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {track.title}
+      </div>
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#B3B3B3",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {track.artist}
       </div>
     </div>
   );
 }
 
-// ─── Search Result Row ────────────────────────────────────────────────────────
-function SearchResultRow({ track, index, playing, onPlay }: { track: Track; index: number; playing: boolean; onPlay: () => void }) {
+// ── Search Result Row ───────────────────────────────────────────────────────
+function SearchResultRow({
+  track,
+  index,
+  active,
+  onPlay,
+}: {
+  track: Track;
+  index: number;
+  active: boolean;
+  onPlay: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
+
   return (
     <div
       onClick={onPlay}
@@ -486,137 +1126,65 @@ function SearchResultRow({ track, index, playing, onPlay }: { track: Track; inde
       onMouseLeave={() => setHovered(false)}
       style={{
         display: "grid",
-        gridTemplateColumns: "32px 48px 1fr auto",
+        gridTemplateColumns: "32px 50px 1fr auto",
         alignItems: "center",
-        gap: "12px",
-        padding: "6px 8px",
+        gap: "14px",
+        padding: "8px 12px",
         borderRadius: "6px",
         cursor: "pointer",
-        background: hovered ? "rgba(255,255,255,0.07)" : "transparent",
-        transition: "background 0.15s",
+        background: active
+          ? "rgba(255,255,255,0.12)"
+          : hovered
+          ? "rgba(255,255,255,0.06)"
+          : "transparent",
+        transition: "background 0.15s ease",
       }}
     >
-      {/* Index / play icon */}
-      <div style={{ textAlign: "center", fontSize: "13px", color: playing ? accent : muted, fontWeight: playing ? 700 : 400 }}>
-        {hovered || playing ? (playing ? "▶" : "▶") : index}
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: "13px",
+          color: active ? "#1DB954" : "#B3B3B3",
+          fontWeight: active ? 700 : 500,
+        }}
+      >
+        {hovered || active ? (active ? "⏸" : "▶") : index}
       </div>
 
-      {/* Thumbnail */}
       <img
         src={track.thumbnail}
         alt={track.title}
-        style={{ width: "48px", height: "48px", borderRadius: "4px", objectFit: "cover" }}
-        onError={(e) => { (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${track.id}/default.jpg`; }}
+        style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "4px",
+          objectFit: "cover",
+        }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).src =
+            "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&q=80";
+        }}
       />
 
-      {/* Title + artist */}
-      <div>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: playing ? accent : text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "240px" }}>{track.title}</div>
-        <div style={{ fontSize: "12px", color: muted }}>{track.uploader}</div>
-      </div>
-
-      {/* Duration */}
-      <div style={{ fontSize: "12px", color: muted, paddingRight: "8px" }}>{track.durationFormatted}</div>
-    </div>
-  );
-}
-
-// ─── Player Bar ───────────────────────────────────────────────────────────────
-function PlayerBar({
-  player, totalDuration, onTogglePlay, onSeek, onVolume, progressRef,
-}: {
-  player: PlayerState;
-  totalDuration: number;
-  onTogglePlay: () => void;
-  onSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
-  onVolume: (v: number) => void;
-  progressRef: React.RefObject<HTMLDivElement>;
-}) {
-  return (
-    <div style={{ height: "84px", background: "#181818", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", padding: "0 16px", gap: "12px", flexShrink: 0 }}>
-
-      {/* Now playing info */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "240px", flexShrink: 0 }}>
-        {player.track ? (
-          <>
-            <img src={player.track.thumbnail} alt="" style={{ width: "56px", height: "56px", borderRadius: "4px", objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${player.track?.id}/default.jpg`; }} />
-            <div style={{ overflow: "hidden" }}>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{player.track.title}</div>
-              <div style={{ fontSize: "11px", color: muted }}>{player.track.uploader}</div>
-            </div>
-            <span style={{ color: accent, fontSize: "14px", flexShrink: 0, marginLeft: "4px" }}>♥</span>
-          </>
-        ) : (
-          <div style={{ color: mutedDark, fontSize: "12px" }}>Nothing playing</div>
-        )}
-      </div>
-
-      {/* Center controls + progress */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-        {/* Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <CtrlBtn label="⇄" title="Shuffle" />
-          <CtrlBtn label="⏮" title="Previous" />
-          <button
-            onClick={onTogglePlay}
-            disabled={!player.track}
-            title={player.playing ? "Pause" : "Play"}
-            style={{
-              width: "36px", height: "36px", borderRadius: "50%",
-              background: player.track ? text : mutedDark,
-              border: "none", cursor: player.track ? "pointer" : "default",
-              fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "transform 0.1s",
-            }}
-          >
-            {player.loading ? "⏳" : player.playing ? "⏸" : "▶"}
-          </button>
-          <CtrlBtn label="⏭" title="Next" />
-          <CtrlBtn label="↺" title="Repeat" />
+      <div style={{ overflow: "hidden" }}>
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: 600,
+            color: active ? "#1DB954" : "#FFFFFF",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {track.title}
         </div>
-
-        {/* Progress bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", maxWidth: "520px" }}>
-          <span style={{ fontSize: "11px", color: muted, minWidth: "36px", textAlign: "right" }}>{fmtTime(player.elapsed)}</span>
-          <div
-            ref={progressRef}
-            onClick={onSeek}
-            style={{ flex: 1, height: "4px", background: mutedDark, borderRadius: "2px", cursor: "pointer", position: "relative" }}
-          >
-            <div style={{ width: `${player.progress * 100}%`, height: "100%", background: player.track ? accent : mutedDark, borderRadius: "2px", transition: "width 0.1s linear" }} />
-          </div>
-          <span style={{ fontSize: "11px", color: muted, minWidth: "36px" }}>{fmtTime(totalDuration)}</span>
-        </div>
-
-        {/* Error */}
-        {player.error && (
-          <div style={{ fontSize: "10px", color: "#ff6b6b", textAlign: "center" }}>{player.error}</div>
-        )}
+        <div style={{ fontSize: "12px", color: "#B3B3B3" }}>{track.artist}</div>
       </div>
 
-      {/* Volume */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "140px", justifyContent: "flex-end", flexShrink: 0 }}>
-        <span style={{ fontSize: "14px", cursor: "pointer" }} onClick={() => onVolume(player.volume > 0 ? 0 : 0.8)}>
-          {player.volume === 0 ? "🔇" : player.volume < 0.5 ? "🔉" : "🔊"}
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={player.volume}
-          onChange={(e) => onVolume(parseFloat(e.target.value))}
-          style={{ width: "90px", accentColor: accent, cursor: "pointer" }}
-        />
+      <div style={{ fontSize: "12px", color: "#B3B3B3", paddingRight: "10px" }}>
+        {track.duration || "3:30"}
       </div>
     </div>
-  );
-}
-
-function CtrlBtn({ label, title }: { label: string; title: string }) {
-  return (
-    <button title={title} style={{ background: "none", border: "none", color: muted, cursor: "pointer", fontSize: "16px", padding: "4px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {label}
-    </button>
   );
 }
