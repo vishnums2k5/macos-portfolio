@@ -9,6 +9,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite --host",
+    "server": "node server/server.cjs",
     "lint": "eslint .",
     "prepare": "husky",
     "serve": "vite preview --host"
