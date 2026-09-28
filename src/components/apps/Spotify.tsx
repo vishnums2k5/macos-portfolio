@@ -1,7 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-const API = "http://localhost:3001/api";
+// ── Dynamic API Resolution ──────────────────────────────────────────────────
+const DEFAULT_API =
+  import.meta.env.VITE_SPOTIFY_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:3001/api"
+    : "http://localhost:3001/api");
+
+function getStoredApi(): string {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("spotify_backend_url");
+    if (saved) return saved.replace(/\/+$/, "").replace(/\/api$/, "") + "/api";
+  }
+  return DEFAULT_API;
+}
 const accent = "#1DB954";
 const accentDark = "#158f3e";
 const bg = "#121212";
@@ -121,8 +133,9 @@ export default function Spotify() {
     setPlayer((p) => ({ ...p, track, playing: false, loading: true, error: null, progress: 0, elapsed: 0 }));
 
     try {
-      // Use our proxy endpoint to avoid CORS issues with googlevideo.com
-      audio.src = `${API}/proxy?id=${track.id}`;
+      // Use proxy endpoint from configured backend
+      const baseApi = getStoredApi();
+      audio.src = `${baseApi}/proxy?id=${track.id}`;
       audio.volume = player.volume;
       await audio.play();
       setPlayer((p) => ({ ...p, playing: true, loading: false }));
@@ -130,7 +143,7 @@ export default function Spotify() {
       setPlayer((p) => ({
         ...p,
         loading: false,
-        error: `Couldn't load audio. Make sure the backend server is running on port 3001.`,
+        error: `Playback error: backend unreachable. Ensure your Render backend or local server is running.`,
       }));
     }
   }, [player.volume]);
@@ -170,12 +183,13 @@ export default function Spotify() {
     setSearching(true);
     setSearchError(null);
     try {
-      const res = await fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=12`);
+      const baseApi = getStoredApi();
+      const res = await fetch(`${baseApi}/search?q=${encodeURIComponent(q)}&limit=12`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
       setSearchResults(data.results || []);
     } catch {
-      setSearchError("Search failed — check backend is running on port 3001");
+      setSearchError("Search failed — check backend URL or ensure Render service is awake");
       setSearchResults([]);
     } finally {
       setSearching(false);

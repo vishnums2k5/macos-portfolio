@@ -7,7 +7,14 @@ const https = require("https");
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+// Auto-detect yt-dlp binary path
+const YTDLP_BIN =
+  process.env.YTDLP_PATH ||
+  (process.platform === "darwin" && require("fs").existsSync("/opt/anaconda3/bin/yt-dlp")
+    ? "/opt/anaconda3/bin/yt-dlp"
+    : "yt-dlp");
 
 app.use(cors({ origin: "*", methods: ["GET"] }));
 
@@ -19,7 +26,7 @@ app.get("/api/search", async (req, res) => {
   if (!q) return res.status(400).json({ error: "query required" });
 
   try {
-    const cmd = `/opt/anaconda3/bin/yt-dlp "ytsearch${limit}:${q}" --print "%(id)s\t%(title)s\t%(uploader)s\t%(thumbnail)s\t%(duration)s" --no-download --flat-playlist 2>/dev/null`;
+    const cmd = `${YTDLP_BIN} "ytsearch${limit}:${q}" --print "%(id)s\t%(title)s\t%(uploader)s\t%(thumbnail)s\t%(duration)s" --no-download --flat-playlist 2>/dev/null`;
     const { stdout } = await execAsync(cmd, { timeout: 15000 });
 
     const results = stdout.trim().split("\n").filter(Boolean).map((line) => {
@@ -49,7 +56,7 @@ app.get("/api/proxy", async (req, res) => {
   }
 
   try {
-    const cmd = `/opt/anaconda3/bin/yt-dlp -g -f "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio" "https://youtube.com/watch?v=${id}" 2>/dev/null`;
+    const cmd = `${YTDLP_BIN} -g -f "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio" "https://youtube.com/watch?v=${id}" 2>/dev/null`;
     const { stdout } = await execAsync(cmd, { timeout: 20000 });
     const streamUrl = stdout.trim().split("\n")[0];
 
