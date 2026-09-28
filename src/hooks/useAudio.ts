@@ -10,6 +10,13 @@ export interface SongInfo {
   youtubeId?: string;
 }
 
+export interface ExternalPlayer {
+  play: () => void;
+  pause: () => void;
+  toggle: () => void;
+  seek?: (time: number) => void;
+}
+
 export interface HTMLAudioState {
   volume: number;
   playing: boolean;
@@ -27,6 +34,8 @@ export interface HTMLAudioControls {
   seekPercent: (percent: number) => void;
   volume: (value: number) => void;
   setSong: (song: Partial<SongInfo> & { title: string }, autoPlay?: boolean) => void;
+  setPlaying: (playing: boolean) => void;
+  registerExternalPlayer: (player: ExternalPlayer | null) => void;
 }
 
 export interface HTMLAudioProps {
@@ -47,6 +56,8 @@ export function useAudio(props: HTMLAudioProps) {
     elementRef.current = new Audio(initialSong.src);
   }
 
+  const externalPlayerRef = useRef<ExternalPlayer | null>(null);
+
   const [state, setState] = useState<HTMLAudioState>({
     volume: 1,
     playing: false,
@@ -58,6 +69,11 @@ export function useAudio(props: HTMLAudioProps) {
 
   const controls: HTMLAudioControls = {
     play: (): Promise<void> | void => {
+      if (externalPlayerRef.current) {
+        externalPlayerRef.current.play();
+        setState((prev) => ({ ...prev, playing: true }));
+        return;
+      }
       const el = elementRef.current;
       if (el) {
         return el.play().then(() => {
@@ -69,6 +85,11 @@ export function useAudio(props: HTMLAudioProps) {
     },
 
     pause: (): Promise<void> | void => {
+      if (externalPlayerRef.current) {
+        externalPlayerRef.current.pause();
+        setState((prev) => ({ ...prev, playing: false }));
+        return;
+      }
       const el = elementRef.current;
       if (el) {
         el.pause();
@@ -77,6 +98,16 @@ export function useAudio(props: HTMLAudioProps) {
     },
 
     toggle: (play?: boolean): Promise<void> | void => {
+      if (externalPlayerRef.current) {
+        const shouldPlay = play !== undefined ? play : !state.playing;
+        if (shouldPlay) {
+          externalPlayerRef.current.play();
+        } else {
+          externalPlayerRef.current.pause();
+        }
+        setState((prev) => ({ ...prev, playing: shouldPlay }));
+        return;
+      }
       const el = elementRef.current;
       if (el) {
         const shouldPlay = play !== undefined ? play : el.paused;
@@ -89,6 +120,9 @@ export function useAudio(props: HTMLAudioProps) {
     },
 
     seek: (timeInSeconds: number): void => {
+      if (externalPlayerRef.current?.seek) {
+        externalPlayerRef.current.seek(timeInSeconds);
+      }
       const el = elementRef.current;
       if (el) {
         const target = Math.max(0, Math.min(timeInSeconds, el.duration || 9999));
@@ -127,6 +161,14 @@ export function useAudio(props: HTMLAudioProps) {
       }
     },
 
+    setPlaying: (playing: boolean): void => {
+      setState((prev) => ({ ...prev, playing }));
+    },
+
+    registerExternalPlayer: (player: ExternalPlayer | null): void => {
+      externalPlayerRef.current = player;
+    },
+
     setSong: (newSong: Partial<SongInfo> & { title: string }, autoPlay = true): void => {
       const el = elementRef.current;
       const resolvedSong: SongInfo = {
@@ -138,22 +180,22 @@ export function useAudio(props: HTMLAudioProps) {
         youtubeId: newSong.youtubeId,
       };
 
-      if (el) {
+      setState((prev) => ({
+        ...prev,
+        song: resolvedSong,
+        time: 0,
+        progress: 0,
+        duration: resolvedSong.duration || (el ? el.duration : prev.duration),
+        playing: autoPlay ? true : prev.playing,
+      }));
+
+      if (el && newSong.src) {
         const needsReload = resolvedSong.src && el.src !== resolvedSong.src;
         if (needsReload) {
           el.pause();
           el.src = resolvedSong.src;
           el.load();
         }
-
-        setState((prev) => ({
-          ...prev,
-          song: resolvedSong,
-          time: 0,
-          progress: 0,
-          duration: resolvedSong.duration || el.duration || prev.duration,
-        }));
-
         if (autoPlay) {
           el.play().then(() => {
             setState((prev) => ({ ...prev, playing: true }));

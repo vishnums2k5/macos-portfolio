@@ -178,9 +178,11 @@ export default function Spotify() {
           const state = event.data;
           if (state === YT_STATE.PLAYING) {
             setYtPlaying(true);
+            audioCtrl.setPlaying(true);
             startTick();
           } else if (state === YT_STATE.PAUSED || state === YT_STATE.ENDED) {
             setYtPlaying(false);
+            audioCtrl.setPlaying(false);
             stopTick();
           } else if (state === YT_STATE.BUFFERING) {
             // keep showing playing state
@@ -251,7 +253,7 @@ export default function Spotify() {
           src: "",
           youtubeId: track.youtubeId,
         },
-        false
+        true
       );
 
       const p = ytPlayerRef.current;
@@ -283,15 +285,41 @@ export default function Spotify() {
     }
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const p = ytPlayerRef.current;
     if (!p) return;
     if (ytPlaying) {
       p.pauseVideo();
+      audioCtrl.setPlaying(false);
     } else {
-      if (ytReady) p.playVideo();
+      if (ytReady) {
+        p.playVideo();
+        audioCtrl.setPlaying(true);
+      }
     }
-  };
+  }, [ytPlaying, ytReady, audioCtrl]);
+
+  // Register YouTube player with global AudioContext so Control Center & Dynamic Island buttons control Spotify
+  useEffect(() => {
+    audioCtrl.registerExternalPlayer({
+      play: () => {
+        try { ytPlayerRef.current?.playVideo(); } catch (_) {}
+      },
+      pause: () => {
+        try { ytPlayerRef.current?.pauseVideo(); } catch (_) {}
+      },
+      toggle: () => {
+        togglePlay();
+      },
+      seek: (time: number) => {
+        try { ytPlayerRef.current?.seekTo(time, true); } catch (_) {}
+      },
+    });
+
+    return () => {
+      audioCtrl.registerExternalPlayer(null);
+    };
+  }, [audioCtrl, togglePlay]);
 
   const displayTime = isDragging ? dragTime : ytTime;
   const duration = ytDuration > 0 ? ytDuration : 0;

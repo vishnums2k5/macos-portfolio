@@ -24,19 +24,40 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
   const [timerDisplay, setTimerDisplay] = useState("");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSongTitleRef = useRef<string>("");
   const { audioState, controls } = useAudioContext();
 
   // Auto-collapse after expand
   useEffect(() => {
     if (state === "expanded") {
       timeoutRef.current = setTimeout(() => {
-        setState("compact");
+        setState(audioState.playing ? "compact" : "idle");
       }, 5000);
     }
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [state]);
+  }, [state, audioState.playing]);
+
+  // Respond to music playback changes
+  useEffect(() => {
+    if (audioState.playing) {
+      if (audioState.song?.title && audioState.song.title !== lastSongTitleRef.current) {
+        lastSongTitleRef.current = audioState.song.title;
+        setState("expanded");
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          setState("compact");
+        }, 4000);
+      } else if (state === "idle") {
+        setState("compact");
+      }
+    } else {
+      if (state === "compact" && !notification) {
+        setState("idle");
+      }
+    }
+  }, [audioState.playing, audioState.song?.title, notification]);
 
   // Timer countdown display
   useEffect(() => {
@@ -63,7 +84,7 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
       setState("expanded");
       setTimeout(() => {
         setNotification(null);
-        setState("idle");
+        setState(audioState.playing ? "compact" : "idle");
       }, 4000);
     };
 
@@ -71,19 +92,20 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
     return () => {
       window.removeEventListener("island:notify" as string, handleNotification as EventListener);
     };
-  }, []);
+  }, [audioState.playing]);
 
   const handleClick = () => {
     if (state === "idle" || state === "compact") {
       setState("expanded");
     } else {
-      setState("idle");
+      setState(audioState.playing ? "compact" : "idle");
     }
   };
 
   const getWidth = () => {
     if (state === "expanded") return 380;
-    if (state === "compact" || isHovered) return 180;
+    if (state === "compact") return 210;
+    if (isHovered) return 180;
     return 126;
   };
 
@@ -241,11 +263,23 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="flex items-center justify-between h-full px-3"
+              className="flex items-center justify-between h-full px-2.5"
               style={{ height: 32 }}
             >
-              <div className="flex items-center gap-1.5">
-                {audioState.playing && (
+              <div className="flex items-center gap-2 overflow-hidden" style={{ maxWidth: 155 }}>
+                {audioState.song?.cover && (
+                  <img
+                    src={audioState.song.cover}
+                    alt=""
+                    style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ fontSize: 11, color: "white", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {audioState.song?.title || "Music"}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {audioState.playing ? (
                   <motion.div
                     className="flex items-center gap-0.5"
                     initial={{ scale: 0 }}
@@ -255,24 +289,25 @@ export default function DynamicIsland({ currentApp }: DynamicIslandProps) {
                     {[0, 1, 2].map((i) => (
                       <motion.div
                         key={i}
-                        animate={{ height: [3, 10, 5, 8, 3] }}
-                        transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+                        animate={{ height: [3, 11, 5, 9, 3] }}
+                        transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
                         style={{ width: 2.5, borderRadius: 2, background: "var(--accent-green)" }}
                       />
                     ))}
                   </motion.div>
+                ) : (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "radial-gradient(circle, #1f1f1f 30%, #0a0a0a 100%)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      boxShadow: "inset 0 1px 2px rgba(0,0,0,0.5)",
+                    }}
+                  />
                 )}
               </div>
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "radial-gradient(circle, #1f1f1f 30%, #0a0a0a 100%)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  boxShadow: "inset 0 1px 2px rgba(0,0,0,0.5)",
-                }}
-              />
             </motion.div>
           )}
         </AnimatePresence>
