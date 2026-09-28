@@ -73,7 +73,7 @@ const MESSAGES: MailMessage[] = [
 const FOLDERS = ["Inbox", "Sent", "Drafts", "Starred", "Trash"];
 
 export default function Mail() {
-  const [selected, setSelected] = useState<string>(MESSAGES[0].id);
+  const [selected, setSelected] = useState<string>("3");
   const [activeFolder, setActiveFolder] = useState("Inbox");
   const [search, setSearch] = useState("");
   const [composing, setComposing] = useState(false);
@@ -398,7 +398,62 @@ export default function Mail() {
                   whiteSpace: "pre-wrap",
                 }}
               >
-                {activeMsg.body}
+                {activeMsg.body.split("\n").map((line, idx) => {
+                  if (line.startsWith("Link to published item: ")) {
+                    const url = line.replace("Link to published item: ", "").trim();
+                    return (
+                      <div key={idx}>
+                        Link to published item:{" "}
+                        <a
+                          href={url.startsWith("http") ? url : `https://${url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#007AFF", textDecoration: "underline" }}
+                        >
+                          Link
+                        </a>
+                      </div>
+                    );
+                  }
+                  if (line.includes("Chrome Web Store Developer Dashboard")) {
+                    const parts = line.split("Chrome Web Store Developer Dashboard");
+                    return (
+                      <div key={idx}>
+                        {parts[0]}
+                        <a
+                          href="https://chrome.google.com/webstore/devconsole"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#007AFF", textDecoration: "underline" }}
+                        >
+                          Chrome Web Store Developer Dashboard
+                        </a>
+                        {parts[1]}
+                      </div>
+                    );
+                  }
+                  if (line.startsWith("Deployment URL: ")) {
+                    const url = line.replace("Deployment URL: ", "").trim();
+                    return (
+                      <div key={idx}>
+                        Deployment URL:{" "}
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#007AFF", textDecoration: "underline" }}
+                        >
+                          {url}
+                        </a>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={idx} style={{ minHeight: line === "" ? "1em" : undefined }}>
+                      {line}
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
           </AnimatePresence>
